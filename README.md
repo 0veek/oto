@@ -70,7 +70,7 @@ Oto can still leave the result on the clipboard when no supported paste tool is 
 ## Quick start
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/0veek/oto.git
 cd oto
 npm install
 npm run tauri dev
