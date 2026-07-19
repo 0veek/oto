@@ -5,6 +5,10 @@
   <p>Hold a shortcut, speak, release, and Oto transcribes, optionally polishes, and inserts the result into the application you were using.</p>
 </div>
 
+<p align="center">
+  <img src="docs/assets/oto-features-bento.png" alt="Oto feature overview: push-to-talk dictation, X11 and Wayland shortcuts, cloud or local transcription, polish and vocabulary, snippets and Command Mode, layered text insertion, and keyring privacy" width="100%" />
+</p>
+
 > [!NOTE]
 > Oto is an early Linux desktop release. Its post-MVP features are implemented, but desktop integration can still vary between compositors, accessibility trees, portals, and target applications.
 

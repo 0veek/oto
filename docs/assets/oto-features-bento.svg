@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hallmark · macrostructure: Bento Grid · tone: technical · theme: Cobalt (light)
+     audience: GitHub / Linux users · use: README feature showcase
+     pre-emit critique: P5 H5 E5 S5 R4 V5 · honest copy only · no invented metrics
+     axes vs prior Midnight: paper light · grotesk-sans · cool cyan accent -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1400" height="920" viewBox="0 0 1400 920" role="img"
+     aria-labelledby="title desc">
+  <title id="title">Oto — system-wide AI voice dictation for Linux</title>
+  <desc id="desc">Light-themed bento feature grid: push-to-talk, X11 and Wayland shortcuts, cloud and local STT, polish, snippets, insertion, privacy, and overlay states.</desc>
+
+  <defs>
+    <linearGradient id="paperGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f4f7fb"/>
+      <stop offset="100%" stop-color="#eef3f8"/>
+    </linearGradient>
+    <linearGradient id="heroGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b6f96"/>
+      <stop offset="100%" stop-color="#0a8fb8"/>
+    </linearGradient>
+    <linearGradient id="waveGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7dd3f0" stop-opacity="0.35"/>
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#7dd3f0" stop-opacity="0.35"/>
+    </linearGradient>
+    <filter id="softLift" x="-8%" y="-8%" width="116%" height="120%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#1a2430" flood-opacity="0.06"/>
+    </filter>
+    <filter id="heroLift" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#0a6f96" flood-opacity="0.18"/>
+    </filter>
+    <clipPath id="roundHero">
+      <rect x="40" y="120" width="560" height="420" rx="18"/>
+    </clipPath>
+  </defs>
+
+  <!-- Canvas -->
+  <rect width="1400" height="920" fill="url(#paperGrad)"/>
+
+  <!-- Subtle top hairline band -->
+  <rect x="0" y="0" width="1400" height="1" fill="#d5dee8"/>
+
+  <!-- Header -->
+  <g font-family="DejaVu Sans, Liberation Sans, sans-serif">
+    <text x="40" y="48" fill="#5b6b7a" font-family="JetBrains Mono, DejaVu Sans Mono, monospace"
+          font-size="13" letter-spacing="1.6">OTO · LINUX DICTATION</text>
+    <text x="40" y="88" fill="#15202b" font-size="34" font-weight="700" letter-spacing="-0.4">
+      Speak once. Land clean text anywhere.
+    </text>
+    <text x="980" y="48" fill="#5b6b7a" font-family="JetBrains Mono, DejaVu Sans Mono, monospace"
+          font-size="13" letter-spacing="0.4" text-anchor="end">HOLD · SPEAK · RELEASE</text>
+    <text x="1360" y="88" fill="#5b6b7a" font-size="15" text-anchor="end">
+      System-wide push-to-talk for X11 &amp; Wayland
+    </text>
+  </g>
+
+  <!-- ========== BENTO GRID ========== -->
+  <!-- Gap 16, columns: 40 + 4*320 + 3*16 = 40+1280+48 = 1368, pad right 32 → 1400
+       Row heights mixed: hero 420, mid 180, bottom 120
+       y starts 120 -->
+
+  <!-- Tile A: Hero 2×2-ish (2 col × tall) -->
+  <g filter="url(#heroLift)">
+    <rect x="40" y="120" width="560" height="420" rx="18" fill="url(#heroGrad)"/>
+  </g>
+  <!-- Waveform decoration (lower hero, clear of copy) -->
+  <g clip-path="url(#roundHero)" opacity="0.9">
+    <path d="M40 455 C 90 420, 120 490, 170 455 S 250 420, 300 455 S 380 490, 430 450 S 510 415, 560 455 L 560 540 L 40 540 Z"
+          fill="url(#waveGrad)" opacity="0.22"/>
+    <g transform="translate(340 360)" fill="#ffffff">
+      <rect x="0" y="28" width="6" height="24" rx="3" opacity="0.45"/>
+      <rect x="14" y="14" width="6" height="52" rx="3" opacity="0.7"/>
+      <rect x="28" y="4" width="6" height="72" rx="3" opacity="0.95"/>
+      <rect x="42" y="18" width="6" height="44" rx="3" opacity="0.65"/>
+      <rect x="56" y="10" width="6" height="60" rx="3" opacity="0.85"/>
+      <rect x="70" y="22" width="6" height="36" rx="3" opacity="0.55"/>
+      <rect x="84" y="8" width="6" height="64" rx="3" opacity="0.9"/>
+      <rect x="98" y="20" width="6" height="40" rx="3" opacity="0.6"/>
+      <rect x="112" y="2" width="6" height="76" rx="3" opacity="1"/>
+      <rect x="126" y="16" width="6" height="48" rx="3" opacity="0.7"/>
+      <rect x="140" y="26" width="6" height="28" rx="3" opacity="0.5"/>
+      <rect x="154" y="12" width="6" height="56" rx="3" opacity="0.8"/>
+    </g>
+  </g>
+  <g font-family="DejaVu Sans, Liberation Sans, sans-serif" fill="#ffffff">
+    <text x="72" y="168" font-family="JetBrains Mono, DejaVu Sans Mono, monospace"
+          font-size="12" letter-spacing="1.8" opacity="0.85">PUSH-TO-TALK</text>
+    <text x="72" y="220" font-size="36" font-weight="700" letter-spacing="-0.6">Hold. Speak.</text>
+    <text x="72" y="266" font-size="36" font-weight="700" letter-spacing="-0.6">Text lands.</text>
+    <text x="72" y="318" font-size="16" opacity="0.92">
+      Global shortcut → capture → transcribe →
+    </text>
+    <text x="72" y="342" font-size="16" opacity="0.92">
+      optional polish → insert into the focused app.
+    </text>
+    <!-- State chips -->
+    <g transform="translate(72 480)" font-family="JetBrains Mono, DejaVu Sans Mono, monospace" font-size="12">
+      <rect x="0" y="-16" width="92" height="28" rx="8" fill="#ffffff" fill-opacity="0.16"/>
+      <circle cx="16" cy="-2" r="4" fill="#7dffc0"/>
+      <text x="28" y="3" fill="#ffffff">Listening</text>
+      <rect x="102" y="-16" width="102" height="28" rx="8" fill="#ffffff" fill-opacity="0.16"/>
+      <circle cx="118" cy="-2" r="4" fill="#ffe08a"/>
+      <text x="130" y="3" fill="#ffffff">Processing</text>
+      <rect x="214" y="-16" width="72" height="28" rx="8" fill="#ffffff" fill-opacity="0.16"/>
+      <circle cx="230" cy="-2" r="4" fill="#9ad8ff"/>
+      <text x="242" y="3" fill="#ffffff">Done</text>
+      <rect x="296" y="-16" width="72" height="28" rx="8" fill="#ffffff" fill-opacity="0.16"/>
+      <circle cx="312" cy="-2" r="4" fill="#ff9aa8"/>
+      <text x="324" y="3" fill="#ffffff">Error</text>
+    </g>
+  </g>
+
+  <!-- Tile B: Shortcuts -->
+  <g filter="url(#softLift)">
+    <rect x="616" y="120" width="360" height="200" rx="16" fill="#fbfcfe" stroke="#d5dee8" stroke-width="1"/>
+  </g>
+  <g font-family="DejaVu Sans, Liberation Sans, sans-serif">
+    <text x="644" y="160" fill="#0a8fb8" font-family="JetBrains Mono, DejaVu Sans Mono, monospace"
+          font-size="12" letter-spacing="1.6">SHORTCUTS</text>
+    <text x="644" y="198" fill="#15202b" font-size="22" font-weight="700">X11 &amp; Wayland</text>
+    <text x="644" y="228" fill="#5b6b7a" font-size="15">XDG GlobalShortcuts portal,</text>
+    <text x="644" y="250" fill="#5b6b7a" font-size="15">Hyprland runtime binds, tray fallback.</text>
+    <!-- kbd pill -->
+    <rect x="644" y="272" width="168" height="28" rx="8" fill="#eef4f8" stroke="#c9d5e0"/>
+    <text x="728" y="291" text-anchor="middle" fill="#15202b"
+          font-family="JetBrains Mono, DejaVu Sans Mono, monospace" font-size="13">Ctrl + Shift + Space</text>
+  </g>
+
+  <!-- Tile C: Cloud / Local -->
+  <g filter="url(#softLift)">
+    <rect x="992" y="120" width="368" height="200" rx="16" fill="#fbfcfe" stroke="#d5dee8" stroke-width="1"/>
+  </g>
+  <g font-family="DejaVu Sans, Liberation Sans, sans-serif">
+    <text x="1020" y="160" fill="#0a8fb8" font-family="JetBrains Mono, DejaVu Sans Mono, monospace"
+          font-size="12" letter-spacing="1.6">TRANSCRIPTION</text>
+    <text x="1020" y="198" fill="#15202b" font-size="22" font-weight="700">Cloud or local</text>
+    <text x="1020" y="228" fill="#5b6b7a" font-size="15">OpenAI-compatible STT, or offline</text>
+    <text x="1020" y="250" fill="#5b6b7a" font-size="15">whisper-rs with live partials.</text>
+    <g font-family="JetBrains Mono, DejaVu Sans Mono, monospace" font-size="12">
+      <rect x="1020" y="272" width="68" height="26" rx="7" fill="#e8f6fb" stroke="#9fd4e8"/>
+      <text x="1054" y="290" text-anchor="middle" fill="#0a6f96">OpenAI</text>
+      <rect x="1096" y="272" width="56" height="26" rx="7" fill="#e8f6fb" stroke="#9fd4e8"/>
+      <text x="1124" y="290" text-anchor="middle" fill="#0a6f96">Groq</text>
+      <rect x="1160" y="272" width="88" height="26" rx="7" fill="#e8f6fb" stroke="#9fd4e8"/>
+      <text x="1204" y="290" text-anchor="middle" fill="#0a6f96">OpenRouter</text>
+      <rect x="1256" y="272" width="72" height="26" rx="7" fill="#eef4f8" stroke="#c9d5e0"/>
+      <text x="1292" y="290" text-anchor="middle" fill="#3d4d5c">Custom</text>
+    </g>
+  </g>
+
+  <!-- Tile D: Polish -->
+  <g filter="url(#softLift)">
+    <rect x="616" y="336" width="744" height="204" rx="16" fill="#fbfcfe" stroke="#d5dee8" stroke-width="1"/>
+  </g>
+  <g font-family="DejaVu Sans, Liberation Sans, sans-serif">
+    <text x="644" y="376" fill="#0a8fb8" font-family="JetBrains Mono, DejaVu Sans Mono, monospace"
+          font-size="12" letter-spacing="1.6">POLISH &amp; VOCABULARY</text>
+    <text x="644" y="416" fill="#15202b" font-size="22" font-weight="700">Clean transcripts, protected terms</text>
+    <text x="644" y="448" fill="#5b6b7a" font-size="15">Optional LLM cleanup with tone guidance, style presets, and a dictionary</text>
+    <text x="644" y="470" fill="#5b6b7a" font-size="15">that keeps names and technical language intact on cloud and local engines.</text>
+    <!-- mini before/after -->
+    <g transform="translate(644 492)">
+      <rect x="0" y="0" width="340" height="30" rx="8" fill="#f3f6f9" stroke="#d5dee8"/>
+      <text x="14" y="20" fill="#8a97a4" font-size="13" font-style="italic">um so like ship the patch tomorrow…</text>
+      <text x="356" y="20" fill="#0a8fb8" font-size="16" font-weight="700">→</text>
+      <rect x="380" y="0" width="320" height="30" rx="8" fill="#e8f6fb" stroke="#9fd4e8"/>
+      <text x="394" y="20" fill="#15202b" font-size="13" font-weight="600">Ship the patch tomorrow.</text>
+    </g>
+  </g>
+
+  <!-- Tile E: Snippets / Command -->
+  <g filter="url(#softLift)">
+    <rect x="40" y="556" width="360" height="200" rx="16" fill="#fbfcfe" stroke="#d5dee8" stroke-width="1"/>
+  </g>
+  <g font-family="DejaVu Sans, Liberation Sans, sans-serif">
+    <text x="68" y="596" fill="#0a8fb8" font-family="JetBrains Mono, DejaVu Sans Mono, monospace"
+          font-size="12" letter-spacing="1.6">MACROS</text>
+    <text x="68" y="634" fill="#15202b" font-size="20" font-weight="700">Snippets &amp; Command Mode</text>
+    <text x="68" y="666" fill="#5b6b7a" font-size="14">Exact spoken triggers expand to</text>
+    <text x="68" y="686" fill="#5b6b7a" font-size="14">verbatim text. Select text, speak a</text>
+    <text x="68" y="706" fill="#5b6b7a" font-size="14">rewrite instruction, replace in place.</text>
+  </g>
+
+  <!-- Tile F: Insertion -->
+  <g filter="url(#softLift)">
+    <rect x="416" y="556" width="528" height="200" rx="16" fill="#fbfcfe" stroke="#d5dee8" stroke-width="1"/>
+  </g>
+  <g font-family="DejaVu Sans, Liberation Sans, sans-serif">
+    <text x="444" y="596" fill="#0a8fb8" font-family="JetBrains Mono, DejaVu Sans Mono, monospace"
+          font-size="12" letter-spacing="1.6">INSERTION</text>
+    <text x="444" y="634" fill="#15202b" font-size="20" font-weight="700">Layered Linux text delivery</text>
+    <text x="444" y="666" fill="#5b6b7a" font-size="14">AT-SPI EditableText → virtual keyboard typing →</text>
+    <text x="444" y="686" fill="#5b6b7a" font-size="14">clipboard + paste → clipboard-only fallback.</text>
+    <g font-family="JetBrains Mono, DejaVu Sans Mono, monospace" font-size="11" transform="translate(444 708)">
+      <rect x="0" y="0" width="58" height="24" rx="6" fill="#0a8fb8"/>
+      <text x="29" y="16" text-anchor="middle" fill="#ffffff">Auto</text>
+      <rect x="66" y="0" width="88" height="24" rx="6" fill="#eef4f8" stroke="#c9d5e0"/>
+      <text x="110" y="16" text-anchor="middle" fill="#3d4d5c">Direct type</text>
+      <rect x="162" y="0" width="118" height="24" rx="6" fill="#eef4f8" stroke="#c9d5e0"/>
+      <text x="221" y="16" text-anchor="middle" fill="#3d4d5c">Clipboard+paste</text>
+      <rect x="288" y="0" width="108" height="24" rx="6" fill="#eef4f8" stroke="#c9d5e0"/>
+      <text x="342" y="16" text-anchor="middle" fill="#3d4d5c">Clipboard only</text>
+    </g>
+  </g>
+
+  <!-- Tile G: Privacy -->
+  <g filter="url(#softLift)">
+    <rect x="960" y="556" width="400" height="200" rx="16" fill="#fbfcfe" stroke="#d5dee8" stroke-width="1"/>
+  </g>
+  <g font-family="DejaVu Sans, Liberation Sans, sans-serif">
+    <text x="988" y="596" fill="#0a8fb8" font-family="JetBrains Mono, DejaVu Sans Mono, monospace"
+          font-size="12" letter-spacing="1.6">PRIVACY</text>
+    <text x="988" y="634" fill="#15202b" font-size="20" font-weight="700">Keys stay in the keyring</text>
+    <text x="988" y="666" fill="#5b6b7a" font-size="14">API keys never land in JSON config.</text>
+    <text x="988" y="686" fill="#5b6b7a" font-size="14">History is local, optional, and clearable.</text>
+    <text x="988" y="706" fill="#5b6b7a" font-size="14">Sync is explicit and user-initiated.</text>
+  </g>
+
+  <!-- Tile H: footer strip -->
+  <g filter="url(#softLift)">
+    <rect x="40" y="772" width="1320" height="100" rx="16" fill="#15202b"/>
+  </g>
+  <g font-family="DejaVu Sans, Liberation Sans, sans-serif" fill="#e8eef4">
+    <text x="72" y="816" font-size="18" font-weight="700">Also built in</text>
+    <g font-family="JetBrains Mono, DejaVu Sans Mono, monospace" font-size="13" fill="#9eb0c0">
+      <text x="72" y="846">Floating overlay · Themes &amp; a11y · Built-in mic / STT / insertion tests · Declarative provider profiles · MIT</text>
+    </g>
+    <text x="1288" y="830" text-anchor="end" fill="#7dd3f0" font-size="15" font-weight="700">oto</text>
+    <text x="1288" y="852" text-anchor="end" fill="#6a7d90" font-size="12"
+          font-family="JetBrains Mono, DejaVu Sans Mono, monospace">dev.oto.app</text>
+  </g>
+</svg>
