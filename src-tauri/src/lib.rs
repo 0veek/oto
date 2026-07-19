@@ -1,3 +1,8 @@
+mod error;
+mod pipeline;
+mod state;
+
+use state::AppState;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -48,6 +53,7 @@ fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(AppState::default())
         .setup(|app| {
             setup_tray(app.handle())?;
             if let Some(settings) = app.get_webview_window("settings") {
