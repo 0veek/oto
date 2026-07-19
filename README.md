@@ -52,7 +52,7 @@ Config (no API keys) is stored under your XDG config directory, typically:
 
 `~/.config/oto/config.json`
 
-API keys go only into the OS keyring (service `oto`, accounts per provider preset).
+API keys go only into the OS keyring (service `dev.oto.app`, accounts per provider preset).
 
 ---
 

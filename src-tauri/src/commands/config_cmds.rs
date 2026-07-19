@@ -4,6 +4,7 @@ use crate::config::{
 use crate::error::OtoError;
 use crate::hotkeys;
 use crate::pipeline::orchestrator::position_overlay;
+use crate::state::AppState;
 use tauri::{AppHandle, Manager};
 
 fn preset_account(p: &ProviderPreset) -> &'static str {
@@ -30,6 +31,13 @@ pub fn set_config(app: AppHandle, cfg: AppConfig) -> Result<(), OtoError> {
         if cfg.idle_behavior == IdleBehavior::Minimal {
             position_overlay(&overlay);
             let _ = overlay.show();
+        } else if app
+            .try_state::<AppState>()
+            .map(|s| s.pipeline.is_idle())
+            .unwrap_or(true)
+        {
+            // Hide while idle when switching to Hide; leave visible mid-dictation.
+            let _ = overlay.hide();
         }
     }
     Ok(())

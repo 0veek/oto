@@ -26,11 +26,11 @@
     <Waveform />
     <span class="opacity-90">Listening…</span>
   {:else if $pipelineState === "processing"}
-    <span class="opacity-90">{$pipelinePhase || "Processing…"}</span>
+    <span class="opacity-90">{$pipelineDetail || $pipelinePhase || "Processing…"}</span>
   {:else if $pipelineState === "error"}
     <span class="max-w-[200px] truncate text-rose-200">{$pipelineDetail}</span>
   {:else if $pipelineState === "done"}
-    <span class="opacity-90">Done</span>
+    <span class="max-w-[200px] truncate opacity-90">{$pipelineDetail || "Done"}</span>
   {:else}
     <span class="opacity-70">Oto</span>
   {/if}

@@ -50,6 +50,23 @@
       </span>
     </label>
 
+    <label class="block space-y-1.5">
+      <span class="text-sm font-medium text-slate-300">Language</span>
+      <input
+        type="text"
+        class="w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-sky-400/50 focus:ring-2 focus:ring-sky-400/20"
+        placeholder="auto-detect"
+        value={config.language ?? ""}
+        oninput={(e) => {
+          const v = e.currentTarget.value;
+          config.language = v.trim() === "" ? null : v.trim();
+        }}
+      />
+      <span class="text-xs text-slate-500">
+        Optional ISO code (e.g. en, es). Leave empty for auto-detect.
+      </span>
+    </label>
+
     <label class="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-slate-900/40 px-4 py-3">
       <div>
         <div class="text-sm font-medium text-slate-200">Enable polish</div>

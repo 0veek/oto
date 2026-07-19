@@ -12,11 +12,21 @@ use crate::injection::{inject_text, InjectResult};
 use crate::pipeline::events::{PipelineEvent, PipelineState};
 use crate::providers::{client_from_config, PolishContext, SpeechToText, TextPolisher};
 
+/// Exclusive pipeline phase — only one session may run at a time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Phase {
+    Idle,
+    Listening,
+    Processing,
+}
+
 struct Inner {
     recorder: Option<AudioRecorder>,
-    listening: bool,
-    /// Bumped on new sessions / cancel so delayed error timeouts don't clobber later work.
+    phase: Phase,
+    /// Bumped on new sessions / cancel so delayed work doesn't clobber later sessions.
     epoch: u64,
+    /// Set on cancel; checked after awaits during processing.
+    cancel_flag: bool,
     /// Last captured WAV bytes (for STT / test_transcription).
     last_wav: Option<Vec<u8>>,
 }
@@ -32,8 +42,9 @@ impl Pipeline {
             app,
             inner: Mutex::new(Inner {
                 recorder: None,
-                listening: false,
+                phase: Phase::Idle,
                 epoch: 0,
+                cancel_flag: false,
                 last_wav: None,
             }),
         }
@@ -74,8 +85,32 @@ impl Pipeline {
         Ok(inner.epoch)
     }
 
+    /// True when phase is Idle (safe for appearance changes / new PTT).
+    pub fn is_idle(&self) -> bool {
+        self.lock_inner()
+            .map(|g| g.phase == Phase::Idle)
+            .unwrap_or(true)
+    }
+
+    /// True if this processing session was cancelled or superseded.
+    fn session_aborted(&self, session_epoch: u64) -> bool {
+        self.lock_inner()
+            .map(|g| g.epoch != session_epoch || g.cancel_flag)
+            .unwrap_or(true)
+    }
+
+    /// Mark phase Idle (best-effort) without bumping epoch.
+    fn set_phase_idle(&self) {
+        if let Ok(mut inner) = self.lock_inner() {
+            inner.phase = Phase::Idle;
+            inner.recorder = None;
+        }
+    }
+
     /// Error state stays ~4s (or until cancel/dismiss), then idle.
     async fn finish_error(&self, message: String) {
+        // Allow a new PTT immediately; error flash is non-exclusive.
+        self.set_phase_idle();
         let epoch = self.bump_epoch().unwrap_or(0);
         self.emit(PipelineEvent::Error {
             message: message.clone(),
@@ -86,7 +121,7 @@ impl Pipeline {
         // Skip if user dismissed or a new session started.
         let still = self
             .lock_inner()
-            .map(|g| g.epoch == epoch && !g.listening)
+            .map(|g| g.epoch == epoch && g.phase == Phase::Idle)
             .unwrap_or(false);
         if still {
             self.emit_state(PipelineState::Idle);
@@ -119,11 +154,14 @@ impl Pipeline {
     pub async fn ptt_down(&self) -> OtoResult<()> {
         {
             let mut inner = self.lock_inner()?;
-            if inner.listening {
+            // Only start a new listen from Idle — reject if already Listening or Processing.
+            if inner.phase != Phase::Idle {
                 return Ok(());
             }
-            // Invalidate any pending error timeout from a previous take.
+            // Invalidate any pending error timeout / leftover cancel from a previous take.
             inner.epoch = inner.epoch.wrapping_add(1);
+            inner.cancel_flag = false;
+            inner.phase = Phase::Listening;
         }
 
         self.emit_state(PipelineState::Listening);
@@ -132,15 +170,15 @@ impl Pipeline {
         match AudioRecorder::start(self.app.clone()) {
             Ok(recorder) => {
                 let mut inner = self.lock_inner()?;
-                // Another concurrent start may have won; keep the first session.
-                if inner.listening {
+                // Cancel or supersede may have happened while starting the device.
+                if inner.phase != Phase::Listening || inner.cancel_flag {
                     return Ok(());
                 }
                 inner.recorder = Some(recorder);
-                inner.listening = true;
                 Ok(())
             }
             Err(e) => {
+                self.set_phase_idle();
                 self.finish_error(e.to_string()).await;
                 Err(e)
             }
@@ -148,13 +186,15 @@ impl Pipeline {
     }
 
     pub async fn ptt_up(&self) -> OtoResult<()> {
-        let recorder = {
+        let (recorder, session_epoch) = {
             let mut inner = self.lock_inner()?;
-            if !inner.listening {
+            if inner.phase != Phase::Listening {
                 return Ok(());
             }
-            inner.listening = false;
-            inner.recorder.take()
+            // Capture epoch for this session; further work aborts if cancel bumps it.
+            let session_epoch = inner.epoch;
+            inner.phase = Phase::Processing;
+            (inner.recorder.take(), session_epoch)
         };
 
         let wav = if let Some(rec) = recorder {
@@ -173,6 +213,11 @@ impl Pipeline {
             self.finish_error("No audio captured".into()).await;
             return Ok(());
         };
+
+        if self.session_aborted(session_epoch) {
+            self.set_phase_idle();
+            return Ok(());
+        }
 
         self.emit_state(PipelineState::Processing);
 
@@ -199,10 +244,19 @@ impl Pipeline {
         let mut text = match client.transcribe(&wav, cfg.language.as_deref()).await {
             Ok(t) => t,
             Err(e) => {
+                if self.session_aborted(session_epoch) {
+                    self.set_phase_idle();
+                    return Ok(());
+                }
                 self.finish_error(e.to_string()).await;
                 return Err(e);
             }
         };
+
+        if self.session_aborted(session_epoch) {
+            self.set_phase_idle();
+            return Ok(());
+        }
 
         if text.trim().is_empty() {
             self.finish_error("No speech detected".into()).await;
@@ -219,8 +273,18 @@ impl Pipeline {
                 tone_hint: cfg.tone_hint.clone(),
             };
             match client.polish(&text, &ctx).await {
-                Ok(polished) => text = polished,
+                Ok(polished) => {
+                    if self.session_aborted(session_epoch) {
+                        self.set_phase_idle();
+                        return Ok(());
+                    }
+                    text = polished;
+                }
                 Err(e) => {
+                    if self.session_aborted(session_epoch) {
+                        self.set_phase_idle();
+                        return Ok(());
+                    }
                     // Spec: fall back to raw + toast (do not abort pipeline).
                     self.emit(PipelineEvent::state(
                         PipelineState::Processing,
@@ -230,16 +294,29 @@ impl Pipeline {
             }
         }
 
+        if self.session_aborted(session_epoch) {
+            self.set_phase_idle();
+            return Ok(());
+        }
+
         self.emit(PipelineEvent::Phase {
             phase: "injecting".into(),
         });
 
         let done_detail = match inject_text(&text, &cfg.injection_mode).await {
             Ok(InjectResult::ClipboardOnly) => {
+                if self.session_aborted(session_epoch) {
+                    self.set_phase_idle();
+                    return Ok(());
+                }
                 // Text is on clipboard; user pastes manually.
                 "Copied — press Ctrl+V".to_string()
             }
             Ok(InjectResult::Pasted | InjectResult::Atspi) => {
+                if self.session_aborted(session_epoch) {
+                    self.set_phase_idle();
+                    return Ok(());
+                }
                 // Surface the injected text (truncate long transcripts for overlay).
                 if text.chars().count() > 120 {
                     let short: String = text.chars().take(117).collect();
@@ -249,10 +326,19 @@ impl Pipeline {
                 }
             }
             Err(e) => {
+                if self.session_aborted(session_epoch) {
+                    self.set_phase_idle();
+                    return Ok(());
+                }
                 self.finish_error(format!("Injection failed: {e}")).await;
                 return Err(e);
             }
         };
+
+        if self.session_aborted(session_epoch) {
+            self.set_phase_idle();
+            return Ok(());
+        }
 
         self.emit(PipelineEvent::state(
             PipelineState::Done,
@@ -261,6 +347,15 @@ impl Pipeline {
         // Done flash ~700ms then idle.
         sleep(Duration::from_millis(700)).await;
 
+        if self.session_aborted(session_epoch) {
+            self.set_phase_idle();
+            return Ok(());
+        }
+
+        {
+            let mut inner = self.lock_inner()?;
+            inner.phase = Phase::Idle;
+        }
         self.emit_state(PipelineState::Idle);
         self.hide_overlay();
         Ok(())
@@ -270,8 +365,9 @@ impl Pipeline {
         {
             let mut inner = self.lock_inner()?;
             inner.recorder = None;
-            inner.listening = false;
-            // Invalidate pending error auto-dismiss.
+            inner.phase = Phase::Idle;
+            inner.cancel_flag = true;
+            // Invalidate pending error auto-dismiss and in-flight processing.
             inner.epoch = inner.epoch.wrapping_add(1);
         }
         self.emit_state(PipelineState::Idle);
