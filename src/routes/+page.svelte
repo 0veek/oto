@@ -1,9 +1,37 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import { listen } from "@tauri-apps/api/event";
+  import FloatingPill from "$lib/components/FloatingPill.svelte";
+  import { applyPipelineEvent, pipelineState } from "$lib/stores/pipeline";
+  import type { PipelineEvent } from "$lib/types";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
+
+  onMount(() => {
+    const unlistenPromise = listen<PipelineEvent>("pipeline://event", (e) => {
+      applyPipelineEvent(e.payload);
+    });
+
+    const unsub = pipelineState.subscribe(async (s) => {
+      try {
+        const win = getCurrentWindow();
+        if (s === "idle") {
+          // hide when idle — appearance setting refined later
+          await win.hide();
+        } else {
+          await win.show();
+        }
+      } catch {
+        // Browser/dev without Tauri: ignore window API failures
+      }
+    });
+
+    return () => {
+      unsub();
+      unlistenPromise.then((u) => u());
+    };
+  });
+</script>
+
 <div class="flex h-screen w-screen items-center justify-center bg-transparent">
-  <div
-    class="flex items-center gap-3 rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm text-white shadow-xl backdrop-blur-xl"
-    data-tauri-drag-region
-  >
-    <span class="h-2.5 w-2.5 rounded-full bg-slate-400"></span>
-    <span class="opacity-80">Oto idle</span>
-  </div>
+  <FloatingPill />
 </div>

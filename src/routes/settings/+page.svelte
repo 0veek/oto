@@ -99,6 +99,35 @@
         <ProvidersSection bind:config />
       {:else if active === "models"}
         <ModelsSection bind:config />
+      {:else if active === "appearance"}
+        <section class="space-y-4">
+          <header>
+            <h2 class="text-xl font-semibold tracking-tight">Appearance</h2>
+            <p class="mt-1 text-sm text-slate-400">
+              Preview the overlay UI without running dictation.
+            </p>
+          </header>
+          <div
+            class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 space-y-4 backdrop-blur-xl"
+          >
+            <p class="text-sm text-slate-400">
+              Emit mock listening + level events so you can check the glass pill and waveform.
+            </p>
+            <button
+              type="button"
+              class="rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/15 transition hover:bg-white/15"
+              onclick={async () => {
+                try {
+                  await invoke("debug_preview_listening");
+                } catch (e) {
+                  saveStatus = `Preview failed: ${String(e)}`;
+                }
+              }}
+            >
+              Preview listening UI
+            </button>
+          </div>
+        </section>
       {:else}
         <section class="space-y-4">
           <header>

@@ -62,6 +62,8 @@ pub fn run() {
             commands::config_cmds::set_api_key,
             commands::config_cmds::api_key_present,
             commands::config_cmds::api_key_hint,
+            commands::pipeline_cmds::cancel_dictation,
+            commands::pipeline_cmds::debug_preview_listening,
         ])
         .setup(|app| {
             setup_tray(app.handle())?;
