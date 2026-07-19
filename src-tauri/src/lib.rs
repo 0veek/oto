@@ -1,3 +1,4 @@
+mod commands;
 mod config;
 mod error;
 mod pipeline;
@@ -55,6 +56,13 @@ fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
 pub fn run() {
     tauri::Builder::default()
         .manage(AppState::default())
+        .invoke_handler(tauri::generate_handler![
+            commands::config_cmds::get_config,
+            commands::config_cmds::set_config,
+            commands::config_cmds::set_api_key,
+            commands::config_cmds::api_key_present,
+            commands::config_cmds::api_key_hint,
+        ])
         .setup(|app| {
             setup_tray(app.handle())?;
             if let Some(settings) = app.get_webview_window("settings") {
