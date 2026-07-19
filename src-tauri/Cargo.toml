@@ -24,3 +24,8 @@ serde_json = "1"
 thiserror = "2.0.19"
 tokio = { version = "1.53.0", features = ["rt-multi-thread", "macros", "sync"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "multipart", "rustls"] }
+directories = "6.0.0"
+dirs = "6.0.0"
+
+[dev-dependencies]
+tempfile = "3.27.0"
