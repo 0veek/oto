@@ -10,7 +10,8 @@ mod state;
 
 use std::sync::Arc;
 
-use config::load_config;
+use config::{load_config, save_config, IdleBehavior};
+use pipeline::orchestrator::position_overlay;
 use pipeline::Pipeline;
 use state::AppState;
 use tauri::{
@@ -19,6 +20,8 @@ use tauri::{
     Manager, Runtime,
 };
 use tokio::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     let start = MenuItem::with_id(app, "start_listening", "Start Listening", true, None::<&str>)?;
@@ -94,6 +97,7 @@ pub fn run() {
             commands::config_cmds::api_key_present,
             commands::config_cmds::api_key_hint,
             commands::config_cmds::get_app_version,
+            commands::config_cmds::set_overlay_position,
             commands::pipeline_cmds::ptt_down,
             commands::pipeline_cmds::ptt_up,
             commands::pipeline_cmds::cancel_dictation,
@@ -134,6 +138,47 @@ pub fn run() {
                     }
                 });
                 let _ = settings.show();
+            }
+
+            // Overlay: restore/default position, persist moves (debounced), optional minimal idle.
+            if let Some(overlay) = app.get_webview_window("overlay") {
+                position_overlay(&overlay);
+
+                // Debounced position save on WindowEvent::Moved.
+                let save_pending = Arc::new(AtomicBool::new(false));
+                let last_pos = Arc::new(std::sync::Mutex::new((0i32, 0i32)));
+                overlay.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Moved(pos) = event {
+                        if let Ok(mut g) = last_pos.lock() {
+                            *g = (pos.x, pos.y);
+                        }
+                        if save_pending
+                            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                            .is_ok()
+                        {
+                            let pending = Arc::clone(&save_pending);
+                            let pos_slot = Arc::clone(&last_pos);
+                            std::thread::spawn(move || {
+                                std::thread::sleep(Duration::from_millis(400));
+                                if let Ok(g) = pos_slot.lock() {
+                                    let (x, y) = *g;
+                                    if let Ok(mut cfg) = load_config() {
+                                        cfg.overlay_x = Some(x);
+                                        cfg.overlay_y = Some(y);
+                                        let _ = save_config(&cfg);
+                                    }
+                                }
+                                pending.store(false, Ordering::SeqCst);
+                            });
+                        }
+                    }
+                });
+
+                if let Ok(cfg) = load_config() {
+                    if cfg.idle_behavior == IdleBehavior::Minimal {
+                        let _ = overlay.show();
+                    }
+                }
             }
             Ok(())
         })

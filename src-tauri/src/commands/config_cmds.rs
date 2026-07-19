@@ -1,7 +1,10 @@
-use crate::config::{load_config, save_config, secrets, AppConfig, ProviderPreset};
+use crate::config::{
+    load_config, save_config, secrets, AppConfig, IdleBehavior, ProviderPreset,
+};
 use crate::error::OtoError;
 use crate::hotkeys;
-use tauri::AppHandle;
+use crate::pipeline::orchestrator::position_overlay;
+use tauri::{AppHandle, Manager};
 
 fn preset_account(p: &ProviderPreset) -> &'static str {
     match p {
@@ -21,7 +24,15 @@ pub fn get_config() -> Result<AppConfig, OtoError> {
 pub fn set_config(app: AppHandle, cfg: AppConfig) -> Result<(), OtoError> {
     // Re-register before saving so invalid hotkeys are rejected without writing config.
     hotkeys::register_ptt(&app, &cfg.hotkey)?;
-    save_config(&cfg)
+    save_config(&cfg)?;
+    // Apply idle appearance immediately when settings change.
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        if cfg.idle_behavior == IdleBehavior::Minimal {
+            position_overlay(&overlay);
+            let _ = overlay.show();
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -49,4 +60,13 @@ pub fn api_key_hint(preset: ProviderPreset) -> Result<Option<String>, OtoError> 
 #[tauri::command]
 pub fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Persist overlay window coordinates (physical pixels).
+#[tauri::command]
+pub fn set_overlay_position(x: i32, y: i32) -> Result<(), OtoError> {
+    let mut cfg = load_config()?;
+    cfg.overlay_x = Some(x);
+    cfg.overlay_y = Some(y);
+    save_config(&cfg)
 }

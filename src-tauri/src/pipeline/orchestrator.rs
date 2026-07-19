@@ -2,21 +2,21 @@
 
 use std::sync::Mutex;
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition};
 use tokio::time::{sleep, Duration};
 
 use crate::audio::AudioRecorder;
-use crate::config::load_config;
+use crate::config::{load_config, IdleBehavior};
 use crate::error::{OtoError, OtoResult};
 use crate::injection::{inject_text, InjectResult};
 use crate::pipeline::events::{PipelineEvent, PipelineState};
-use crate::providers::{
-    client_from_config, PolishContext, SpeechToText, TextPolisher,
-};
+use crate::providers::{client_from_config, PolishContext, SpeechToText, TextPolisher};
 
 struct Inner {
     recorder: Option<AudioRecorder>,
     listening: bool,
+    /// Bumped on new sessions / cancel so delayed error timeouts don't clobber later work.
+    epoch: u64,
     /// Last captured WAV bytes (for STT / test_transcription).
     last_wav: Option<Vec<u8>>,
 }
@@ -33,6 +33,7 @@ impl Pipeline {
             inner: Mutex::new(Inner {
                 recorder: None,
                 listening: false,
+                epoch: 0,
                 last_wav: None,
             }),
         }
@@ -46,15 +47,50 @@ impl Pipeline {
         self.emit(PipelineEvent::state(state, None));
     }
 
+    /// Position overlay from config or bottom-center of the current monitor, then show.
     fn show_overlay(&self) {
         if let Some(w) = self.app.get_webview_window("overlay") {
+            position_overlay(&w);
             let _ = w.show();
         }
     }
 
+    /// Hide overlay unless appearance is set to minimal dormant pill.
     fn hide_overlay(&self) {
+        let keep = load_config()
+            .map(|c| c.idle_behavior == IdleBehavior::Minimal)
+            .unwrap_or(false);
+        if keep {
+            return;
+        }
         if let Some(w) = self.app.get_webview_window("overlay") {
             let _ = w.hide();
+        }
+    }
+
+    fn bump_epoch(&self) -> OtoResult<u64> {
+        let mut inner = self.lock_inner()?;
+        inner.epoch = inner.epoch.wrapping_add(1);
+        Ok(inner.epoch)
+    }
+
+    /// Error state stays ~4s (or until cancel/dismiss), then idle.
+    async fn finish_error(&self, message: String) {
+        let epoch = self.bump_epoch().unwrap_or(0);
+        self.emit(PipelineEvent::Error {
+            message: message.clone(),
+        });
+        // Ensure overlay is visible for the error flash.
+        self.show_overlay();
+        sleep(Duration::from_secs(4)).await;
+        // Skip if user dismissed or a new session started.
+        let still = self
+            .lock_inner()
+            .map(|g| g.epoch == epoch && !g.listening)
+            .unwrap_or(false);
+        if still {
+            self.emit_state(PipelineState::Idle);
+            self.hide_overlay();
         }
     }
 
@@ -82,10 +118,12 @@ impl Pipeline {
 
     pub async fn ptt_down(&self) -> OtoResult<()> {
         {
-            let inner = self.lock_inner()?;
+            let mut inner = self.lock_inner()?;
             if inner.listening {
                 return Ok(());
             }
+            // Invalidate any pending error timeout from a previous take.
+            inner.epoch = inner.epoch.wrapping_add(1);
         }
 
         self.emit_state(PipelineState::Listening);
@@ -103,11 +141,7 @@ impl Pipeline {
                 Ok(())
             }
             Err(e) => {
-                self.emit(PipelineEvent::Error {
-                    message: e.to_string(),
-                });
-                self.emit_state(PipelineState::Idle);
-                self.hide_overlay();
+                self.finish_error(e.to_string()).await;
                 Err(e)
             }
         }
@@ -131,20 +165,12 @@ impl Pipeline {
                     wav
                 }
                 Err(e) => {
-                    self.emit(PipelineEvent::Error {
-                        message: e.to_string(),
-                    });
-                    self.emit_state(PipelineState::Idle);
-                    self.hide_overlay();
+                    self.finish_error(e.to_string()).await;
                     return Err(e);
                 }
             }
         } else {
-            self.emit(PipelineEvent::Error {
-                message: "No audio captured".into(),
-            });
-            self.emit_state(PipelineState::Idle);
-            self.hide_overlay();
+            self.finish_error("No audio captured".into()).await;
             return Ok(());
         };
 
@@ -153,11 +179,7 @@ impl Pipeline {
         let cfg = match load_config() {
             Ok(c) => c,
             Err(e) => {
-                self.emit(PipelineEvent::Error {
-                    message: e.to_string(),
-                });
-                self.emit_state(PipelineState::Idle);
-                self.hide_overlay();
+                self.finish_error(e.to_string()).await;
                 return Err(e);
             }
         };
@@ -165,11 +187,7 @@ impl Pipeline {
         let client = match client_from_config(&cfg) {
             Ok(c) => c,
             Err(e) => {
-                self.emit(PipelineEvent::Error {
-                    message: e.to_string(),
-                });
-                self.emit_state(PipelineState::Idle);
-                self.hide_overlay();
+                self.finish_error(e.to_string()).await;
                 return Err(e);
             }
         };
@@ -181,21 +199,13 @@ impl Pipeline {
         let mut text = match client.transcribe(&wav, cfg.language.as_deref()).await {
             Ok(t) => t,
             Err(e) => {
-                self.emit(PipelineEvent::Error {
-                    message: e.to_string(),
-                });
-                self.emit_state(PipelineState::Idle);
-                self.hide_overlay();
+                self.finish_error(e.to_string()).await;
                 return Err(e);
             }
         };
 
         if text.trim().is_empty() {
-            self.emit(PipelineEvent::Error {
-                message: "No speech detected".into(),
-            });
-            self.emit_state(PipelineState::Idle);
-            self.hide_overlay();
+            self.finish_error("No speech detected".into()).await;
             return Ok(());
         }
 
@@ -239,11 +249,7 @@ impl Pipeline {
                 }
             }
             Err(e) => {
-                self.emit(PipelineEvent::Error {
-                    message: format!("Injection failed: {e}"),
-                });
-                self.emit_state(PipelineState::Idle);
-                self.hide_overlay();
+                self.finish_error(format!("Injection failed: {e}")).await;
                 return Err(e);
             }
         };
@@ -252,6 +258,7 @@ impl Pipeline {
             PipelineState::Done,
             Some(done_detail),
         ));
+        // Done flash ~700ms then idle.
         sleep(Duration::from_millis(700)).await;
 
         self.emit_state(PipelineState::Idle);
@@ -264,9 +271,39 @@ impl Pipeline {
             let mut inner = self.lock_inner()?;
             inner.recorder = None;
             inner.listening = false;
+            // Invalidate pending error auto-dismiss.
+            inner.epoch = inner.epoch.wrapping_add(1);
         }
         self.emit_state(PipelineState::Idle);
         self.hide_overlay();
         Ok(())
+    }
+}
+
+/// Apply saved overlay position, or place bottom-center on the current monitor.
+pub fn position_overlay(w: &tauri::WebviewWindow) {
+    let cfg = load_config().ok();
+    if let Some(cfg) = cfg.as_ref() {
+        if let (Some(x), Some(y)) = (cfg.overlay_x, cfg.overlay_y) {
+            let _ = w.set_position(PhysicalPosition::new(x, y));
+            return;
+        }
+    }
+
+    // Best-effort bottom-center of the monitor the window is on (or primary).
+    let monitor = w
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| w.primary_monitor().ok().flatten());
+
+    if let Some(monitor) = monitor {
+        let screen = monitor.size();
+        let origin = monitor.position();
+        let win = w.outer_size().unwrap_or(tauri::PhysicalSize::new(320, 72));
+        let margin_bottom = 96i32;
+        let x = origin.x + (screen.width as i32 - win.width as i32) / 2;
+        let y = origin.y + screen.height as i32 - win.height as i32 - margin_bottom;
+        let _ = w.set_position(PhysicalPosition::new(x, y));
     }
 }

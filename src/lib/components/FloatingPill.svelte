@@ -42,5 +42,12 @@
     >
       Cancel
     </button>
+  {:else if $pipelineState === "error"}
+    <button
+      class="rounded-full bg-white/10 px-2 py-0.5 text-xs hover:bg-white/20"
+      onclick={cancel}
+    >
+      Dismiss
+    </button>
   {/if}
 </div>
