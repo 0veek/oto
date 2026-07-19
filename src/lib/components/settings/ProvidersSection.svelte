@@ -224,6 +224,7 @@
     -webkit-appearance: none;
     color-scheme: dark;
     background-color: rgb(15 23 42 / 0.8);
+    background-image: none;
     color: rgb(248 250 252);
   }
 

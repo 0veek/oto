@@ -45,43 +45,37 @@
   outline-offset: 2px;
 }
 
-:root[data-theme="light"] {
-  color-scheme: light;
+/* WebKitGTK may paint native select controls with the system's light palette even
+   inside Oto's dark UI. Opt out of the native field appearance and own both the
+   closed control and popup option colors so text can never become white-on-white. */
+.oto-settings select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  color-scheme: dark;
+  color: #f8fafc !important;
+  background-color: #0f172a !important;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #94a3b8 50%),
+    linear-gradient(135deg, #94a3b8 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 50%,
+    calc(100% - 11px) 50%;
+  background-repeat: no-repeat;
+  background-size: 5px 5px;
+  padding-right: 2.5rem;
 }
 
-:root[data-theme="light"] .oto-settings {
-  filter: invert(0.9) hue-rotate(180deg);
+.oto-settings select option,
+.oto-settings select optgroup {
+  color: #f8fafc;
+  background-color: #0f172a;
 }
 
-:root[data-theme="light"] .oto-settings input,
-:root[data-theme="light"] .oto-settings textarea,
-:root[data-theme="light"] .oto-settings select,
-:root[data-theme="light"] .oto-settings img,
-:root[data-theme="light"] .oto-settings svg {
-  filter: invert(1) hue-rotate(180deg);
-}
-
-:root[data-theme="high_contrast"] .oto-settings {
-  background: #000;
-  color: #fff;
-}
-
-:root[data-theme="high_contrast"] .oto-settings * {
-  border-color: rgb(255 255 255 / 0.45);
-}
-
-:root[data-reduce-motion="true"] *,
-:root[data-reduce-motion="true"] *::before,
-:root[data-reduce-motion="true"] *::after {
-  animation-duration: 0.001ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.001ms !important;
-  scroll-behavior: auto !important;
-}
-
-:focus-visible {
-  outline: 2px solid #38bdf8;
-  outline-offset: 2px;
+:root[data-theme="high_contrast"] .oto-settings select,
+:root[data-theme="high_contrast"] .oto-settings select option,
+:root[data-theme="high_contrast"] .oto-settings select optgroup {
+  color: #fff !important;
+  background-color: #000 !important;
 }
 
 html,
