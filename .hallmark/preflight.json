@@ -1,9 +1,0 @@
-{
-  "date": "2026-07-19",
-  "framework": "Svelte 5 and SvelteKit with Tailwind CSS v4",
-  "font_stack_before": "Inter with system fallbacks",
-  "palette_before": "Slate and sky Tailwind utilities",
-  "motion": "CSS transitions only; no motion library",
-  "spacing": "Tailwind four-point scale",
-  "preserved": ["Oto cyan and amber brand mark", "dark-first product surface", "existing routes and component ownership"]
-}
