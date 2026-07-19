@@ -62,7 +62,10 @@ impl Pipeline {
     fn show_overlay(&self) {
         if let Some(w) = self.app.get_webview_window("overlay") {
             position_overlay(&w);
+            let _ = w.set_always_on_top(true);
+            // Do not steal keyboard focus from the app the user is dictating into.
             let _ = w.show();
+            let _ = w.unminimize();
         }
     }
 
@@ -164,8 +167,20 @@ impl Pipeline {
             inner.phase = Phase::Listening;
         }
 
-        self.emit_state(PipelineState::Listening);
+        // Show first so a cold webview can load, then emit (and re-emit shortly
+        // so late event listeners still enter Listening UI).
         self.show_overlay();
+        self.emit_state(PipelineState::Listening);
+        {
+            let app = self.app.clone();
+            tauri::async_runtime::spawn(async move {
+                sleep(Duration::from_millis(80)).await;
+                let _ = app.emit(
+                    "pipeline://event",
+                    PipelineEvent::state(PipelineState::Listening, None),
+                );
+            });
+        }
 
         match AudioRecorder::start(self.app.clone()) {
             Ok(recorder) => {
@@ -379,10 +394,13 @@ impl Pipeline {
 /// Apply saved overlay position, or place bottom-center on the current monitor.
 pub fn position_overlay(w: &tauri::WebviewWindow) {
     let cfg = load_config().ok();
+    // Treat (0, 0) as unset — Moved events often fire with that before layout.
     if let Some(cfg) = cfg.as_ref() {
         if let (Some(x), Some(y)) = (cfg.overlay_x, cfg.overlay_y) {
-            let _ = w.set_position(PhysicalPosition::new(x, y));
-            return;
+            if !(x == 0 && y == 0) {
+                let _ = w.set_position(PhysicalPosition::new(x, y));
+                return;
+            }
         }
     }
 

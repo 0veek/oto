@@ -9,7 +9,7 @@
 </script>
 
 <div
-  class="flex items-center gap-3 rounded-full border border-white/20 bg-slate-900/55 px-4 py-2.5 text-sm text-white shadow-2xl backdrop-blur-2xl"
+  class="flex items-center gap-3 rounded-full border border-white/25 bg-slate-900/90 px-4 py-2.5 text-sm text-white shadow-2xl backdrop-blur-2xl"
   data-tauri-drag-region
 >
   <span

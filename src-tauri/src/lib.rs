@@ -115,20 +115,6 @@ pub fn run() {
 
             setup_tray(app.handle())?;
 
-            match load_config() {
-                Ok(cfg) => {
-                    if let Err(e) = hotkeys::register_ptt(app.handle(), &cfg.hotkey) {
-                        eprintln!("hotkey registration failed (tray fallback available): {e}");
-                    }
-                }
-                Err(e) => {
-                    eprintln!("could not load config for hotkey: {e}");
-                    if let Err(e) = hotkeys::register_ptt(app.handle(), "Ctrl+Super+Space") {
-                        eprintln!("default hotkey registration failed: {e}");
-                    }
-                }
-            }
-
             if let Some(settings) = app.get_webview_window("settings") {
                 let settings_for_event = settings.clone();
                 settings.on_window_event(move |event| {
@@ -140,15 +126,32 @@ pub fn run() {
                 let _ = settings.show();
             }
 
-            // Overlay: restore/default position, persist moves (debounced), optional minimal idle.
+            // Overlay: preload webview (visible:false windows often stay cold until first show),
+            // restore position, persist user drags, optional minimal idle.
             if let Some(overlay) = app.get_webview_window("overlay") {
                 position_overlay(&overlay);
 
-                // Debounced position save on WindowEvent::Moved.
+                // Warm the webview so the first PTT does not race a cold load.
+                let _ = overlay.show();
+                let overlay_hide = overlay.clone();
+                let keep_minimal = load_config()
+                    .map(|c| c.idle_behavior == IdleBehavior::Minimal)
+                    .unwrap_or(false);
+                if !keep_minimal {
+                    std::thread::spawn(move || {
+                        std::thread::sleep(Duration::from_millis(400));
+                        let _ = overlay_hide.hide();
+                    });
+                }
+
+                // Debounced position save on WindowEvent::Moved (ignore 0,0 noise).
                 let save_pending = Arc::new(AtomicBool::new(false));
                 let last_pos = Arc::new(std::sync::Mutex::new((0i32, 0i32)));
                 overlay.on_window_event(move |event| {
                     if let tauri::WindowEvent::Moved(pos) = event {
+                        if pos.x == 0 && pos.y == 0 {
+                            return;
+                        }
                         if let Ok(mut g) = last_pos.lock() {
                             *g = (pos.x, pos.y);
                         }
@@ -162,6 +165,10 @@ pub fn run() {
                                 std::thread::sleep(Duration::from_millis(400));
                                 if let Ok(g) = pos_slot.lock() {
                                     let (x, y) = *g;
+                                    if x == 0 && y == 0 {
+                                        pending.store(false, Ordering::SeqCst);
+                                        return;
+                                    }
                                     if let Ok(mut cfg) = load_config() {
                                         cfg.overlay_x = Some(x);
                                         cfg.overlay_y = Some(y);
@@ -173,10 +180,31 @@ pub fn run() {
                         }
                     }
                 });
+            }
 
-                if let Ok(cfg) = load_config() {
-                    if cfg.idle_behavior == IdleBehavior::Minimal {
-                        let _ = overlay.show();
+            // Clear stale (0,0) overlay coords from earlier Moved bugs.
+            if let Ok(mut cfg) = load_config() {
+                if cfg.overlay_x == Some(0) && cfg.overlay_y == Some(0) {
+                    cfg.overlay_x = None;
+                    cfg.overlay_y = None;
+                    let _ = save_config(&cfg);
+                }
+            }
+
+            match load_config() {
+                Ok(cfg) => {
+                    if let Err(e) = hotkeys::register_ptt(app.handle(), &cfg.hotkey) {
+                        eprintln!(
+                            "hotkey registration failed (use tray Start/Stop): {e}"
+                        );
+                    } else {
+                        eprintln!("hotkey registered: {}", cfg.hotkey);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("could not load config for hotkey: {e}");
+                    if let Err(e) = hotkeys::register_ptt(app.handle(), "Ctrl+Super+Space") {
+                        eprintln!("default hotkey registration failed: {e}");
                     }
                 }
             }
