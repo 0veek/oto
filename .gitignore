@@ -17,3 +17,4 @@ src-tauri/target/
 
 # Brainstorm / local agent artifacts
 .superpowers/
+.worktrees/
