@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { IconCircleCheck, IconDeviceFloppy } from "@tabler/icons-svelte";
   import type { AppConfig } from "$lib/types";
   import SettingsShell from "$lib/components/settings/SettingsShell.svelte";
   import ProvidersSection from "$lib/components/settings/ProvidersSection.svelte";
@@ -56,7 +57,8 @@
       config = await invoke<AppConfig>("get_config");
     } catch (e) {
       // Browser/dev without Tauri: keep page usable for layout checks
-      loadError = String(e);
+      const browserPreview = ["http:", "https:"].includes(window.location.protocol);
+      loadError = browserPreview ? null : String(e);
       config = {
         provider_preset: "groq",
         base_url: "https://api.groq.com/openai/v1",
@@ -113,7 +115,19 @@
   }
 
   onMount(() => {
+    const requestedSection = new URLSearchParams(window.location.search).get("section");
+    if (requestedSection && SECTIONS.some((section) => section.id === requestedSection)) {
+      active = requestedSection as SectionId;
+    }
     void loadConfig();
+    const onKeydown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && SAVABLE.includes(active)) {
+        event.preventDefault();
+        void saveConfig();
+      }
+    };
+    window.addEventListener("keydown", onKeydown);
+    return () => window.removeEventListener("keydown", onKeydown);
   });
 
   $effect(() => {
@@ -135,7 +149,7 @@
       saveStatus = null;
     }}
   >
-    <div class="mx-auto max-w-2xl space-y-6">
+    <div class="settings-stage">
       {#if loadError}
         <div
           class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90"
@@ -169,24 +183,29 @@
       {/if}
 
       {#if SAVABLE.includes(active)}
-        <div class="flex items-center justify-end gap-3 pt-2">
-          {#if saveStatus}
-            <span
-              class="text-sm {saveStatus.startsWith('Save failed')
-                ? 'text-rose-400'
-                : 'text-emerald-400'}"
-            >
-              {saveStatus}
-            </span>
-          {/if}
+        <div class="settings-actionbar">
+          <span class="settings-actionbar__note">
+            Changes are stored locally and take effect after saving.
+          </span>
+          <div class="flex items-center gap-3">
+            {#if saveStatus?.startsWith("Save failed")}
+              <span class="text-sm text-rose-400" role="alert">{saveStatus}</span>
+            {/if}
           <button
             type="button"
-            class="rounded-xl bg-white/10 px-5 py-2.5 text-sm font-medium text-white ring-1 ring-white/15 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+            class="settings-actionbar__button"
             disabled={saving}
             onclick={saveConfig}
           >
-            {saving ? "Saving…" : "Save settings"}
+            {#if saveStatus === "Saved"}
+              <IconCircleCheck aria-hidden="true" size={18} stroke={1.8} />
+              Saved
+            {:else}
+              <IconDeviceFloppy aria-hidden="true" size={18} stroke={1.8} />
+              {saving ? "Saving…" : "Save changes"}
+            {/if}
           </button>
+          </div>
         </div>
       {/if}
     </div>

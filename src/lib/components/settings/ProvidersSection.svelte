@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { IconChevronDown } from "@tabler/icons-svelte";
   import type { AppConfig, ProviderPreset, ProviderProfile } from "$lib/types";
 
   const PRESET_DEFAULTS: Record<Exclude<ProviderPreset, "custom">, string> = {
@@ -125,7 +126,7 @@
   >
     <label class="block space-y-1.5">
       <span class="text-sm font-medium text-slate-300">Provider preset</span>
-      <div class="relative">
+      <div class="select-wrap">
         <select
           class="provider-select w-full rounded-xl border border-white/10 px-3 py-2.5 pr-10 text-sm outline-none transition focus:border-sky-400/50 focus:ring-2 focus:ring-sky-400/20"
           value={config.provider_preset}
@@ -135,13 +136,7 @@
             <option value={opt.value}>{opt.label}</option>
           {/each}
         </select>
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 20 20"
-          class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-        >
-          <path fill="currentColor" d="m5.25 7.5 4.75 5 4.75-5z" />
-        </svg>
+        <IconChevronDown aria-hidden="true" size={16} stroke={1.7} />
       </div>
     </label>
 
@@ -151,10 +146,13 @@
           <div><div class="text-sm font-medium text-slate-200">Provider profiles</div><div class="text-xs text-slate-500">Declarative plugins for OpenAI-compatible endpoints.</div></div>
           <button type="button" class="rounded-lg bg-white/10 px-3 py-1.5 text-xs hover:bg-white/15" onclick={addProfile}>Add profile</button>
         </div>
-        <select class="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white" value={config.active_custom_provider_id ?? ""} onchange={(event) => config.active_custom_provider_id = event.currentTarget.value || null}>
-          <option value="">Legacy custom fields below</option>
-          {#each config.custom_providers as profile (profile.id)}<option value={profile.id}>{profile.name}</option>{/each}
-        </select>
+        <div class="select-wrap">
+          <select class="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white" value={config.active_custom_provider_id ?? ""} onchange={(event) => config.active_custom_provider_id = event.currentTarget.value || null}>
+            <option value="">Legacy custom fields below</option>
+            {#each config.custom_providers as profile (profile.id)}<option value={profile.id}>{profile.name}</option>{/each}
+          </select>
+          <IconChevronDown aria-hidden="true" size={16} stroke={1.7} />
+        </div>
         {#if config.active_custom_provider_id}
           {@const profile = config.custom_providers.find((item) => item.id === config.active_custom_provider_id)}
           {#if profile}
@@ -217,19 +215,3 @@
     </div>
   </div>
 </section>
-
-<style>
-  .provider-select {
-    appearance: none;
-    -webkit-appearance: none;
-    color-scheme: dark;
-    background-color: rgb(15 23 42 / 0.8);
-    background-image: none;
-    color: rgb(248 250 252);
-  }
-
-  .provider-select option {
-    background-color: rgb(15 23 42);
-    color: rgb(248 250 252);
-  }
-</style>

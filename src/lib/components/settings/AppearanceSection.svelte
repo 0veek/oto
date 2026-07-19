@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { IconChevronDown } from "@tabler/icons-svelte";
   import type { AppConfig, IdleBehavior, ThemePreset } from "$lib/types";
 
   let {
@@ -77,9 +78,12 @@
     <div class="grid gap-4 sm:grid-cols-2">
       <label class="block space-y-1.5">
         <span class="text-sm font-medium text-slate-300">Theme</span>
-        <select class="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-white" bind:value={config.theme}>
-          {#each THEMES as theme}<option value={theme.value}>{theme.label}</option>{/each}
-        </select>
+        <div class="select-wrap">
+          <select class="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-white" bind:value={config.theme}>
+            {#each THEMES as theme}<option value={theme.value}>{theme.label}</option>{/each}
+          </select>
+          <IconChevronDown aria-hidden="true" size={16} stroke={1.7} />
+        </div>
       </label>
       <label class="block space-y-1.5">
         <span class="text-sm font-medium text-slate-300">Text size · {Math.round(config.font_scale * 100)}%</span>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { IconChevronDown } from "@tabler/icons-svelte";
   import type { AppConfig, StylePreset } from "$lib/types";
 
   let { config = $bindable() }: { config: AppConfig } = $props();
@@ -40,10 +41,13 @@
   <div class="space-y-5 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl">
     <label class="block space-y-1.5">
       <span class="text-sm font-medium text-slate-300">Active style</span>
-      <select class="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-white" value={config.active_style_id ?? ""} onchange={(event) => config.active_style_id = event.currentTarget.value || null}>
-        <option value="">No preset</option>
-        {#each config.styles as style (style.id)}<option value={style.id}>{style.name}</option>{/each}
-      </select>
+      <div class="select-wrap">
+        <select class="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-white" value={config.active_style_id ?? ""} onchange={(event) => config.active_style_id = event.currentTarget.value || null}>
+          <option value="">No preset</option>
+          {#each config.styles as style (style.id)}<option value={style.id}>{style.name}</option>{/each}
+        </select>
+        <IconChevronDown aria-hidden="true" size={16} stroke={1.7} />
+      </div>
     </label>
 
     <div class="space-y-3">
@@ -69,4 +73,3 @@
     {#if commandStatus}<p aria-live="polite" class="text-sm text-violet-100/90">{commandStatus}</p>{/if}
   </div>
 </section>
-

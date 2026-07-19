@@ -1,0 +1,123 @@
+/* Hallmark · macrostructure: Workbench · tone: atmospheric-utilitarian · anchor hue: cyan
+ * theme: Midnight · nav: N3 dual side-rail · enrichment: none
+ * pre-emit critique: P5 H5 E4 S5 R5 V4
+ * contrast: pass (40–41) · slop: pass (42–45) · honest: pass (46)
+ * chrome: pass (47) · tokens: pass (48) · responsive: pass (49)
+ * icons: pass (30) · mobile: pass (34, 49, 50–57)
+ */
+:root {
+  --color-paper: oklch(13% 0.018 235);
+  --color-paper-2: oklch(16% 0.019 235);
+  --color-paper-3: oklch(20% 0.02 235);
+  --color-paper-raised: oklch(23% 0.021 235);
+  --color-ink: oklch(95% 0.008 220);
+  --color-ink-2: oklch(82% 0.012 225);
+  --color-muted: oklch(69% 0.014 230);
+  --color-subtle: oklch(57% 0.015 232);
+  --color-rule: oklch(29% 0.02 235);
+  --color-rule-strong: oklch(40% 0.022 232);
+  --color-accent: oklch(78% 0.145 211);
+  --color-accent-strong: oklch(70% 0.16 211);
+  --color-accent-ink: oklch(14% 0.025 235);
+  --color-focus: oklch(83% 0.13 210);
+  --color-warm: oklch(83% 0.165 83);
+  --color-warm-ink: oklch(18% 0.035 75);
+  --color-success: oklch(75% 0.13 158);
+  --color-error: oklch(70% 0.17 25);
+
+  --font-display: "Geist Variable", "Geist", ui-sans-serif, sans-serif;
+  --font-body: "Geist Variable", "Geist", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+  --space-4xl: 7rem;
+  --space-5xl: 10rem;
+
+  --text-xs: 0.8125rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.25rem;
+  --text-lg: 1.5625rem;
+  --text-xl: 1.953rem;
+
+  --radius-control: 0.5rem;
+  --radius-panel: 0.625rem;
+  --radius-round: 999px;
+  --rule-thin: 1px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 110ms;
+  --dur-short: 200ms;
+  --dur-long: 380ms;
+
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+}
+
+:root[data-theme="light"] {
+  --color-paper: oklch(96% 0.01 225);
+  --color-paper-2: oklch(93% 0.012 225);
+  --color-paper-3: oklch(89% 0.014 225);
+  --color-paper-raised: oklch(99% 0.006 225);
+  --color-ink: oklch(18% 0.02 235);
+  --color-ink-2: oklch(30% 0.02 235);
+  --color-muted: oklch(43% 0.018 232);
+  --color-subtle: oklch(52% 0.016 230);
+  --color-rule: oklch(80% 0.018 228);
+  --color-rule-strong: oklch(66% 0.025 225);
+  --color-accent: oklch(57% 0.15 218);
+  --color-accent-strong: oklch(49% 0.16 218);
+  --color-accent-ink: oklch(98% 0.008 220);
+  --color-focus: oklch(49% 0.16 218);
+  --color-warm: oklch(70% 0.16 75);
+  --color-warm-ink: oklch(16% 0.03 75);
+}
+
+:root[data-theme="high_contrast"] {
+  --color-paper: oklch(8% 0.01 235);
+  --color-paper-2: oklch(12% 0.012 235);
+  --color-paper-3: oklch(17% 0.014 235);
+  --color-paper-raised: oklch(20% 0.014 235);
+  --color-ink: oklch(98% 0.005 220);
+  --color-ink-2: oklch(91% 0.008 220);
+  --color-muted: oklch(80% 0.01 225);
+  --color-subtle: oklch(70% 0.012 228);
+  --color-rule: oklch(52% 0.02 230);
+  --color-rule-strong: oklch(72% 0.025 228);
+  --color-accent: oklch(85% 0.15 210);
+  --color-focus: oklch(90% 0.14 95);
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] {
+    --color-paper: oklch(96% 0.01 225);
+    --color-paper-2: oklch(93% 0.012 225);
+    --color-paper-3: oklch(89% 0.014 225);
+    --color-paper-raised: oklch(99% 0.006 225);
+    --color-ink: oklch(18% 0.02 235);
+    --color-ink-2: oklch(30% 0.02 235);
+    --color-muted: oklch(43% 0.018 232);
+    --color-subtle: oklch(52% 0.016 230);
+    --color-rule: oklch(80% 0.018 228);
+    --color-rule-strong: oklch(66% 0.025 225);
+    --color-accent: oklch(57% 0.15 218);
+    --color-accent-strong: oklch(49% 0.16 218);
+    --color-accent-ink: oklch(98% 0.008 220);
+    --color-focus: oklch(49% 0.16 218);
+  }
+}
