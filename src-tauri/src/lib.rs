@@ -9,8 +9,13 @@ fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &quit])?;
 
+    let icon = app
+        .default_window_icon()
+        .ok_or_else(|| tauri::Error::FailedToReceiveMessage)?
+        .clone();
+
     let _tray = TrayIconBuilder::new()
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(icon)
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open_settings" => {
@@ -45,8 +50,15 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             setup_tray(app.handle())?;
-            if let Some(w) = app.get_webview_window("settings") {
-                let _ = w.show();
+            if let Some(settings) = app.get_webview_window("settings") {
+                let settings_for_event = settings.clone();
+                settings.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = settings_for_event.hide();
+                    }
+                });
+                let _ = settings.show();
             }
             Ok(())
         })
