@@ -2,7 +2,7 @@
 node_modules/
 .npm/
 .pnpm-store/
-
+.oto-details.md
 # Frontend build and tooling caches
 /.svelte-kit/
 /build/
@@ -69,6 +69,7 @@ vite.config.ts.timestamp-*
 .superpowers/
 .worktrees/
 graphify-out/
+.hallmark/
 
 # Flatpak build output
 /.flatpak-build/
