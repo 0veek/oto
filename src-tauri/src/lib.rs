@@ -107,6 +107,7 @@ pub fn run() {
             commands::test_cmds::test_microphone,
         ])
         .setup(|app| {
+            app.manage(hotkeys::HotkeyManager::default());
             let pipeline = Arc::new(Pipeline::new(app.handle().clone()));
             app.manage(AppState {
                 cancel_flag: Arc::new(Mutex::new(false)),
@@ -191,23 +192,49 @@ pub fn run() {
                 }
             }
 
-            match load_config() {
-                Ok(cfg) => {
-                    if let Err(e) = hotkeys::register_ptt(app.handle(), &cfg.hotkey) {
-                        eprintln!(
-                            "hotkey registration failed (use tray Start/Stop): {e}"
-                        );
-                    } else {
-                        eprintln!("hotkey registered: {}", cfg.hotkey);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("could not load config for hotkey: {e}");
-                    if let Err(e) = hotkeys::register_ptt(app.handle(), "Ctrl+Super+Space") {
-                        eprintln!("default hotkey registration failed: {e}");
-                    }
-                }
+            let (hotkey, load_error) = match load_config() {
+                Ok(cfg) => (cfg.hotkey, None),
+                Err(error) => ("Ctrl+Shift+Space".to_string(), Some(error)),
+            };
+            if let Some(error) = load_error {
+                eprintln!("could not load config for hotkey: {error}");
             }
+            let hotkey_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = hotkeys::register_ptt(&hotkey_app, &hotkey).await {
+                    const FALLBACK_HOTKEY: &str = "Ctrl+Shift+Space";
+                    eprintln!("hotkey registration failed for {hotkey}: {error}");
+
+                    // A compositor shortcut can be added after Oto saved its config.
+                    // Recover on the next launch instead of leaving PTT (and therefore
+                    // the overlay) completely inactive. Never replace the conflicting
+                    // desktop binding; move Oto back to its documented safe default.
+                    if hotkey != FALLBACK_HOTKEY {
+                        match hotkeys::register_ptt(&hotkey_app, FALLBACK_HOTKEY).await {
+                            Ok(()) => {
+                                if let Ok(mut cfg) = load_config() {
+                                    cfg.hotkey = FALLBACK_HOTKEY.to_string();
+                                    if let Err(save_error) = save_config(&cfg) {
+                                        eprintln!(
+                                            "fallback hotkey active but could not save config: {save_error}"
+                                        );
+                                    }
+                                }
+                                eprintln!(
+                                    "hotkey fallback active: {FALLBACK_HOTKEY} (the saved {hotkey} shortcut is unavailable)"
+                                );
+                            }
+                            Err(fallback_error) => eprintln!(
+                                "fallback hotkey registration failed (use tray Start/Stop): {fallback_error}"
+                            ),
+                        }
+                    } else {
+                        eprintln!("use tray Start/Stop until the shortcut conflict is resolved");
+                    }
+                } else {
+                    eprintln!("hotkey registered: {hotkey}");
+                }
+            });
             Ok(())
         })
         .run(tauri::generate_context!())

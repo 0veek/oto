@@ -1,26 +1,71 @@
-# Dependencies & build
+# Dependencies
 node_modules/
-dist/
-build/
-src-tauri/target/
-.svelte-kit/
+.npm/
+.pnpm-store/
+
+# Frontend build and tooling caches
+/.svelte-kit/
+/build/
+/dist/
+/.vite/
+/coverage/
 /package
+
+# Rust / Tauri build output
+/src-tauri/target/
+/src-tauri/gen/schemas/
+# `tauri icon` also emits mobile assets; Oto currently ships Linux desktop only.
+/src-tauri/icons/64x64.png
+/src-tauri/icons/android/
+/src-tauri/icons/ios/
+*.AppImage
+*.deb
+*.rpm
+*.dmg
+*.msi
 
 # Env & local secrets
 .env
 .env.*
 !.env.example
+*.pem
+*.key
 
-# OS / editor
+# Logs and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tmp
+*.temp
+*.bak
+*~
+
+# Test, profiling, and crash output
+*.profraw
+perf.data*
+core
+core.*
+
+# OS and editors
 .DS_Store
+Thumbs.db
+Desktop.ini
 *.swp
+*.swo
 .idea/
 .vscode/
+.fleet/
+.zed/
 
 # Vite timestamps
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Brainstorm / local agent artifacts
+# Local worktrees and agent artifacts
+.agents/
+.codex/
 .superpowers/
 .worktrees/
+graphify-out/

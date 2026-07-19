@@ -12,8 +12,8 @@
   <header>
     <h2 class="text-xl font-semibold tracking-tight">Hotkeys</h2>
     <p class="mt-1 text-sm text-slate-400">
-      Global dictation shortcut. Press once to start, press again (or release) to stop &amp;
-      process. On Wayland, release events are often missing — toggle mode still works.
+      Global push-to-talk shortcut. Hold to dictate, then release to stop and process.
+      Wayland uses the desktop GlobalShortcuts portal; X11 uses a native key grab.
     </p>
   </header>
 
@@ -47,6 +47,11 @@
       <p class="font-medium text-amber-200">If the overlay does not appear</p>
       <ul class="mt-1.5 list-disc space-y-1 pl-4 text-amber-100/80">
         <li>Click <strong>Save</strong> after changing the hotkey (bottom of Settings).</li>
+        <li>
+          On Hyprland, Oto creates a runtime <code class="rounded bg-white/5 px-1">global</code>
+          bind for the configured chord. Make sure
+          <code class="rounded bg-white/5 px-1">xdg-desktop-portal-hyprland</code> is running.
+        </li>
         <li>
           Avoid reserved combos:
           <code class="rounded bg-white/5 px-1">Alt+Space</code>,

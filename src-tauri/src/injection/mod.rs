@@ -45,7 +45,10 @@ pub async fn inject_text(text: &str, mode: &InjectionMode) -> OtoResult<InjectRe
             set_clipboard_text(text)?;
             match simulate_paste() {
                 Ok(()) => Ok(InjectResult::Pasted),
-                Err(_) => Ok(InjectResult::ClipboardOnly),
+                Err(error) => {
+                    eprintln!("oto injection: simulated paste failed: {error}");
+                    Ok(InjectResult::ClipboardOnly)
+                }
             }
         }
     }

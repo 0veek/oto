@@ -1,6 +1,6 @@
 //! Paste simulation via session-aware external tools (wtype / ydotool / xdotool).
 
-use std::process::Command;
+use std::{process::Command, thread, time::Duration};
 
 use crate::error::{OtoError, OtoResult};
 
@@ -42,20 +42,27 @@ fn run_ok(mut cmd: Command, label: &str) -> OtoResult<()> {
     }
 }
 
+fn wtype_paste_command() -> Command {
+    let mut command = Command::new("wtype");
+    // `-k` emits both key-down and key-up. Leaving V pressed can make some
+    // Wayland clients ignore the shortcut even though wtype exits successfully.
+    command.args(["-M", "ctrl", "-k", "v", "-m", "ctrl"]);
+    command
+}
+
+fn paste_with_wtype() -> OtoResult<()> {
+    // Give the compositor a moment to publish the new clipboard selection
+    // before the focused client requests it in response to Ctrl+V.
+    thread::sleep(Duration::from_millis(50));
+    run_ok(wtype_paste_command(), "wtype")
+}
+
 /// Simulate Ctrl+V (paste) using the best available tool for this session.
 pub fn simulate_paste() -> OtoResult<()> {
     match detect_session() {
         SessionKind::Wayland => {
             if tool_exists("wtype") {
-                // Hold Ctrl, press v, release Ctrl.
-                return run_ok(
-                    {
-                        let mut c = Command::new("wtype");
-                        c.args(["-M", "ctrl", "-P", "v", "-m", "ctrl"]);
-                        c
-                    },
-                    "wtype",
-                );
+                return paste_with_wtype();
             }
             // ydotool: key codes 29=LeftCtrl, 47=v (press:1 / release:0).
             // Requires ydotoold running with appropriate permissions; may fail silently
@@ -88,14 +95,7 @@ pub fn simulate_paste() -> OtoResult<()> {
             // Last-resort: try wtype even outside a declared Wayland session
             // (some hybrid setups omit XDG_SESSION_TYPE).
             if tool_exists("wtype") {
-                return run_ok(
-                    {
-                        let mut c = Command::new("wtype");
-                        c.args(["-M", "ctrl", "-P", "v", "-m", "ctrl"]);
-                        c
-                    },
-                    "wtype",
-                );
+                return paste_with_wtype();
             }
             Err(OtoError::Message(
                 "No paste tool found (install xdotool or wtype)".into(),
@@ -119,5 +119,15 @@ mod tests {
     fn tool_exists_which_itself() {
         // `which` should find itself on a normal Linux PATH.
         assert!(tool_exists("which") || tool_exists("true"));
+    }
+
+    #[test]
+    fn wtype_paste_is_a_complete_ctrl_v_keystroke() {
+        let command = wtype_paste_command();
+        let args: Vec<_> = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(args, ["-M", "ctrl", "-k", "v", "-m", "ctrl"]);
     }
 }

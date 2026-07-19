@@ -87,15 +87,24 @@
   >
     <label class="block space-y-1.5">
       <span class="text-sm font-medium text-slate-300">Provider preset</span>
-      <select
-        class="w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-sm text-white outline-none transition focus:border-sky-400/50 focus:ring-2 focus:ring-sky-400/20"
-        value={config.provider_preset}
-        onchange={onPresetChange}
-      >
-        {#each PRESET_OPTIONS as opt}
-          <option value={opt.value}>{opt.label}</option>
-        {/each}
-      </select>
+      <div class="relative">
+        <select
+          class="provider-select w-full rounded-xl border border-white/10 px-3 py-2.5 pr-10 text-sm outline-none transition focus:border-sky-400/50 focus:ring-2 focus:ring-sky-400/20"
+          value={config.provider_preset}
+          onchange={onPresetChange}
+        >
+          {#each PRESET_OPTIONS as opt}
+            <option value={opt.value}>{opt.label}</option>
+          {/each}
+        </select>
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 20 20"
+          class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+        >
+          <path fill="currentColor" d="m5.25 7.5 4.75 5 4.75-5z" />
+        </svg>
+      </div>
     </label>
 
     <label class="block space-y-1.5">
@@ -145,3 +154,18 @@
     </div>
   </div>
 </section>
+
+<style>
+  .provider-select {
+    appearance: none;
+    -webkit-appearance: none;
+    color-scheme: dark;
+    background-color: rgb(15 23 42 / 0.8);
+    color: rgb(248 250 252);
+  }
+
+  .provider-select option {
+    background-color: rgb(15 23 42);
+    color: rgb(248 250 252);
+  }
+</style>

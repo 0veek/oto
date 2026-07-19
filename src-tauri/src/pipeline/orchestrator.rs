@@ -10,7 +10,21 @@ use crate::config::{load_config, IdleBehavior};
 use crate::error::{OtoError, OtoResult};
 use crate::injection::{inject_text, InjectResult};
 use crate::pipeline::events::{PipelineEvent, PipelineState};
-use crate::providers::{client_from_config, PolishContext, SpeechToText, TextPolisher};
+use crate::providers::{
+    client_from_config, OpenAiCompatClient, PolishContext, SpeechToText, TextPolisher,
+};
+use crate::state::AppState;
+
+async fn client_from_config_async(
+    cfg: &crate::config::AppConfig,
+) -> OtoResult<OpenAiCompatClient> {
+    // keyring's Secret Service backend is synchronous and internally blocks on
+    // Tokio. Run it outside the async worker to avoid nested-runtime panics.
+    let cfg = cfg.clone();
+    tauri::async_runtime::spawn_blocking(move || client_from_config(&cfg))
+        .await
+        .map_err(|error| OtoError::Message(format!("credential lookup task failed: {error}")))?
+}
 
 /// Exclusive pipeline phase — only one session may run at a time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -164,7 +178,7 @@ impl Pipeline {
             .last_wav()?
             .ok_or_else(|| OtoError::Message("No audio yet — dictate first".into()))?;
         let cfg = load_config()?;
-        let client = client_from_config(&cfg)?;
+        let client = client_from_config_async(&cfg).await?;
         client.transcribe(&wav, cfg.language.as_deref()).await
     }
 
@@ -181,18 +195,28 @@ impl Pipeline {
             inner.phase = Phase::Listening;
         }
 
-        // Show first so a cold webview can load, then emit (and re-emit shortly
-        // so late event listeners still enter Listening UI).
-        self.show_overlay();
+        // Set the visible state at the press boundary. The overlay is prewarmed,
+        // so emitting before show prevents a stale Processing frame on map.
         self.emit_state(PipelineState::Listening);
+        self.show_overlay();
+
+        // A first-run webview may still attach its listener after show. Retry only
+        // while this session is listening so a quick release cannot be overwritten
+        // by a late Listening event.
         {
             let app = self.app.clone();
             tauri::async_runtime::spawn(async move {
                 sleep(Duration::from_millis(80)).await;
-                let _ = app.emit(
-                    "pipeline://event",
-                    PipelineEvent::state(PipelineState::Listening, None),
-                );
+                let still_listening = app
+                    .try_state::<AppState>()
+                    .map(|state| state.pipeline.is_listening())
+                    .unwrap_or(false);
+                if still_listening {
+                    let _ = app.emit(
+                        "pipeline://event",
+                        PipelineEvent::state(PipelineState::Listening, None),
+                    );
+                }
             });
         }
 
@@ -226,6 +250,10 @@ impl Pipeline {
             (inner.recorder.take(), session_epoch)
         };
 
+        // Switch the overlay as soon as the hotkey is released. Finalizing the
+        // recorder and network processing happen after the UI leaves Listening.
+        self.emit_state(PipelineState::Processing);
+
         let wav = if let Some(rec) = recorder {
             match rec.stop() {
                 Ok((wav, _sample_rate)) => {
@@ -248,8 +276,6 @@ impl Pipeline {
             return Ok(());
         }
 
-        self.emit_state(PipelineState::Processing);
-
         let cfg = match load_config() {
             Ok(c) => c,
             Err(e) => {
@@ -258,7 +284,7 @@ impl Pipeline {
             }
         };
 
-        let client = match client_from_config(&cfg) {
+        let client = match client_from_config_async(&cfg).await {
             Ok(c) => c,
             Err(e) => {
                 self.finish_error(e.to_string()).await;
