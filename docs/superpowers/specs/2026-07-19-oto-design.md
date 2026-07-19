@@ -218,7 +218,7 @@ Exact default model IDs may be adjusted at implementation time to match current 
 | Hotkey registration failed | Tray notification; use tray fallback; document Wayland limits |
 | STT auth/network/rate limit | Show clear error; no inject |
 | Empty transcript | Soft message; no inject |
-| Polish failure | Option: fall back to raw STT and inject (preferred for MVP resilience) **or** show error — **decision: fall back to raw transcript + toast that polish failed** |
+| Polish failure | Fall back to raw STT transcript, inject that, and toast that polish failed |
 | Injection step fails | Try next method in chain; final clipboard-only + paste instruction |
 | Cancel | Abort capture/in-flight request best-effort; return to idle |
 
@@ -309,4 +309,3 @@ Automated E2E for global hotkeys/injection is best-effort only (environment-depe
 - Competitive feature parity with Wispr Flow on day one  
 - Multi-user or team features  
 - Windows/macOS support (Linux-first; don’t block portable crates, but don’t ship or test non-Linux in MVP)
-```
