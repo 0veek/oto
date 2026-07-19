@@ -97,12 +97,22 @@
   }
 
   async function saveConfig() {
-    if (!config) return;
+    if (!config || saving) return;
     saving = true;
     saveStatus = null;
     try {
+      // Normalize values the backend also clamps so the form stays consistent.
+      config.history_limit = Math.min(1000, Math.max(1, Math.round(Number(config.history_limit) || 100)));
+      config.font_scale = Math.min(1.25, Math.max(0.85, Number(config.font_scale) || 1));
+      config.temperature = Math.min(1, Math.max(0, Number(config.temperature) || 0));
       // Never pass API keys through set_config — keys use set_api_key only
       await invoke("set_config", { cfg: config });
+      // Reload so server-side normalization (hotkey formatting, etc.) is reflected.
+      try {
+        config = await invoke<AppConfig>("get_config");
+      } catch {
+        // Keep local draft if reload fails.
+      }
       saveStatus = "Saved";
       setTimeout(() => {
         if (saveStatus === "Saved") saveStatus = null;

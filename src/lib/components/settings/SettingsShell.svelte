@@ -10,12 +10,10 @@
     IconHistory,
     IconInfoCircle,
     IconKeyboard,
-    IconMicrophone,
     IconPalette,
     IconServer,
     IconSettings,
     IconShieldLock,
-    IconTerminal2,
     IconWand,
   } from "@tabler/icons-svelte";
 
@@ -87,11 +85,11 @@
       <button class="settings-tool-button" type="button" data-active="true" aria-label="Settings" title="Settings">
         <IconSettings aria-hidden="true" size={20} stroke={1.6} />
       </button>
-      <button class="settings-tool-button" type="button" data-active={active === "appearance"} aria-label="Appearance and microphone" title="Appearance and microphone" onclick={() => onselect("appearance")}>
-        <IconMicrophone aria-hidden="true" size={20} stroke={1.6} />
+      <button class="settings-tool-button" type="button" data-active={active === "appearance"} aria-label="Appearance" title="Appearance" onclick={() => onselect("appearance")}>
+        <IconPalette aria-hidden="true" size={20} stroke={1.6} />
       </button>
       <button class="settings-tool-button" type="button" data-active={active === "hotkeys"} aria-label="Hotkeys" title="Hotkeys" onclick={() => onselect("hotkeys")}>
-        <IconTerminal2 aria-hidden="true" size={20} stroke={1.6} />
+        <IconKeyboard aria-hidden="true" size={20} stroke={1.6} />
       </button>
     </div>
     <div class="settings-utility-rail__bottom">

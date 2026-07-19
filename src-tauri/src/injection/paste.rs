@@ -218,7 +218,7 @@ pub fn simulate_copy() -> OtoResult<()> {
             if tool_exists("wtype") {
                 return run_ok(wtype_copy_command(), "wtype");
             }
-            if tool_exists("ydotool") {
+            if ydotool_ready() {
                 return run_ok(
                     {
                         let mut command = Command::new("ydotool");

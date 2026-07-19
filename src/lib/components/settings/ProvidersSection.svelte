@@ -109,7 +109,9 @@
 
   function removeProfile(id: string) {
     config.custom_providers = config.custom_providers.filter((profile) => profile.id !== id);
-    if (config.active_custom_provider_id === id) config.active_custom_provider_id = null;
+    if (config.active_custom_provider_id === id) {
+      config.active_custom_provider_id = config.custom_providers[0]?.id ?? null;
+    }
   }
 </script>
 
@@ -163,23 +165,33 @@
               <input aria-label="Profile polish model" class="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm" value={profile.polish_model} oninput={(event) => patchProfile(profile.id, { polish_model: event.currentTarget.value })} />
             </div>
             <button type="button" class="text-xs text-rose-300" onclick={() => removeProfile(profile.id)}>Remove this profile</button>
+          {:else}
+            <p class="text-xs text-amber-300">
+              Active profile is missing. Choose another profile or use legacy fields below.
+            </p>
           {/if}
         {/if}
       </div>
     {/if}
 
-    <label class="block space-y-1.5">
-      <span class="text-sm font-medium text-slate-300">Base URL</span>
-      <input
-        type="url"
-        class="w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-sky-400/50 focus:ring-2 focus:ring-sky-400/20"
-        placeholder="https://api.example.com/v1"
-        bind:value={config.base_url}
-      />
-      <span class="text-xs text-slate-500">
-        OpenAI-compatible API root (…/v1). Updated automatically for known presets.
-      </span>
-    </label>
+    {#if config.provider_preset !== "custom" || !config.active_custom_provider_id}
+      <label class="block space-y-1.5">
+        <span class="text-sm font-medium text-slate-300">Base URL</span>
+        <input
+          type="url"
+          class="w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-sky-400/50 focus:ring-2 focus:ring-sky-400/20"
+          placeholder="https://api.example.com/v1"
+          bind:value={config.base_url}
+        />
+        <span class="text-xs text-slate-500">
+          OpenAI-compatible API root (…/v1). Updated automatically for known presets.
+        </span>
+      </label>
+    {:else}
+      <p class="rounded-xl border border-white/10 bg-slate-900/30 px-3 py-2 text-xs text-slate-500">
+        Base URL and model IDs come from the active provider profile above.
+      </p>
+    {/if}
 
     <div class="space-y-1.5">
       <span class="text-sm font-medium text-slate-300">API key</span>

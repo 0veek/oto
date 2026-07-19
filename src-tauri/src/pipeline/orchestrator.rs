@@ -402,6 +402,15 @@ impl Pipeline {
         let wav = if let Some(rec) = recorder {
             match rec.stop() {
                 Ok((wav, _sample_rate)) => {
+                    // Tiny captures are almost always accidental taps (no speech).
+                    // Surface a clearer error than a failed remote STT call.
+                    if wav.len() < 1024 {
+                        self.finish_error(
+                            "Recording was too short — hold the hotkey while speaking".into(),
+                        )
+                        .await;
+                        return Ok(());
+                    }
                     let mut inner = self.lock_inner()?;
                     inner.last_wav = Some(wav.clone());
                     wav

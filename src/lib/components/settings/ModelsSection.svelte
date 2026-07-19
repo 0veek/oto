@@ -14,11 +14,26 @@
   let testResult = $state<string | null>(null);
   let testError = $state<string | null>(null);
 
+  const activeProfile = $derived(
+    config.provider_preset === "custom" && config.active_custom_provider_id
+      ? config.custom_providers.find((profile) => profile.id === config.active_custom_provider_id) ?? null
+      : null,
+  );
+
+  function patchActiveProfile(patch: { stt_model?: string; polish_model?: string }) {
+    if (!activeProfile) return;
+    config.custom_providers = config.custom_providers.map((profile) =>
+      profile.id === activeProfile.id ? { ...profile, ...patch } : profile,
+    );
+  }
+
   async function testTranscription() {
     testBusy = true;
     testResult = null;
     testError = null;
     try {
+      // Persist current model settings so the test uses what the form shows.
+      await invoke("set_config", { cfg: config });
       testResult = await invoke<string>("test_transcription");
     } catch (e) {
       testError = String(e);
@@ -70,6 +85,18 @@
             Polish still sends the resulting text to its configured provider. Disable it or use a localhost profile for a fully local pipeline.
           </p>
         {/if}
+      {:else if activeProfile}
+        <label class="setting-field">
+          <span class="setting-field__label">STT model · {activeProfile.name}</span>
+          <input
+            class="font-mono"
+            type="text"
+            placeholder="whisper-large-v3"
+            value={activeProfile.stt_model}
+            oninput={(event) => patchActiveProfile({ stt_model: event.currentTarget.value })}
+          />
+          <span class="setting-field__hint">Stored on the active custom provider profile (not the legacy global field).</span>
+        </label>
       {:else}
         <label class="setting-field">
           <span class="setting-field__label">STT model</span>
@@ -124,8 +151,21 @@
       </label>
 
       <label class="setting-field" class:opacity-50={!config.polish_enabled}>
-        <span class="setting-field__label">Polish model</span>
-        <input class="font-mono" type="text" placeholder="llama-3.1-8b-instant" disabled={!config.polish_enabled} bind:value={config.polish_model} />
+        <span class="setting-field__label">
+          Polish model{activeProfile ? ` · ${activeProfile.name}` : ""}
+        </span>
+        {#if activeProfile}
+          <input
+            class="font-mono"
+            type="text"
+            placeholder="llama-3.1-8b-instant"
+            disabled={!config.polish_enabled}
+            value={activeProfile.polish_model}
+            oninput={(event) => patchActiveProfile({ polish_model: event.currentTarget.value })}
+          />
+        {:else}
+          <input class="font-mono" type="text" placeholder="llama-3.1-8b-instant" disabled={!config.polish_enabled} bind:value={config.polish_model} />
+        {/if}
       </label>
 
       <label class="setting-field" class:opacity-50={!config.polish_enabled}>

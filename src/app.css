@@ -253,7 +253,8 @@ input[type="range"] {
 .oto-settings select {
   appearance: none !important;
   -webkit-appearance: none !important;
-  color-scheme: dark;
+  /* Inherit from :root / theme so light mode native menus stay readable. */
+  color-scheme: inherit;
   padding-inline-end: var(--space-xl) !important;
 }
 
@@ -895,4 +896,14 @@ input[type="range"] {
   animation-iteration-count: 1 !important;
   scroll-behavior: auto !important;
   transition-duration: 150ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse {
+    animation: none !important;
+  }
+}
+
+:root[data-reduce-motion="true"] .animate-pulse {
+  animation: none !important;
 }

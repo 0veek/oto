@@ -12,7 +12,17 @@ export function applyPipelineEvent(ev: import("../types").PipelineEvent) {
     case "state":
       pipelineState.set(ev.state);
       pipelineDetail.set(ev.detail ?? "");
-      if (ev.state === "listening" || ev.state === "idle") partialTranscript.set("");
+      // Clear ephemeral UI so a new session never flashes stale phase/partial/level.
+      if (ev.state === "listening" || ev.state === "idle") {
+        partialTranscript.set("");
+        pipelinePhase.set("");
+      }
+      if (ev.state === "idle" || ev.state === "done" || ev.state === "error") {
+        audioLevel.set(0);
+      }
+      if (ev.state === "listening") {
+        audioLevel.set(0);
+      }
       break;
     case "level":
       audioLevel.set(ev.level);
@@ -26,6 +36,9 @@ export function applyPipelineEvent(ev: import("../types").PipelineEvent) {
     case "error":
       pipelineState.set("error");
       pipelineDetail.set(ev.message);
+      pipelinePhase.set("");
+      partialTranscript.set("");
+      audioLevel.set(0);
       break;
   }
 }

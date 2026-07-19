@@ -42,7 +42,7 @@
     status = null;
     try {
       await invoke("debug_preview_listening");
-      status = "Preview events sent — check the overlay.";
+      status = "Preview finished — the overlay should have shown Listening briefly.";
     } catch (e) {
       status = `Preview failed: ${String(e)}`;
     } finally {
@@ -55,7 +55,7 @@
     status = null;
     try {
       await invoke("test_microphone");
-      status = "Mic test finished (~2s of levels).";
+      status = "Mic test finished (~2s of levels on the overlay).";
     } catch (e) {
       status = `Mic test failed: ${String(e)}`;
     } finally {

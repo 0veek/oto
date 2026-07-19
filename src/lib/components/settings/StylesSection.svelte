@@ -23,7 +23,8 @@
     try {
       await invoke("set_config", { cfg: config });
       await invoke("start_command_mode", { focusDelayMs: 2000 });
-      commandStatus = "Listening. Say the edit, then tap/release your dictation hotkey or use tray → Stop Listening.";
+      commandStatus =
+        "Listening. Speak the edit instruction, then release your dictation hotkey (or tray → Stop Listening).";
     } catch (error) {
       commandStatus = `Command Mode failed: ${String(error)}`;
     } finally {

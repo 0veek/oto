@@ -69,6 +69,8 @@ pub async fn inject_text(text: &str, mode: &InjectionMode) -> OtoResult<InjectRe
 
 /// Copy the focused application's selection for Command Mode. A sentinel makes
 /// it possible to distinguish a real selection from a rejected synthetic key.
+/// When the clipboard path is used, the previous clipboard contents are restored
+/// after the selection is read so Command Mode does not permanently clobber it.
 pub async fn capture_selected_text() -> OtoResult<String> {
     if let Some(selected) = try_atspi_selection().await? {
         return Ok(selected);
@@ -97,6 +99,10 @@ pub async fn capture_selected_text() -> OtoResult<String> {
         return Err(OtoError::Message(
             "No selected text found — select text in the target app first".into(),
         ));
+    }
+    // Selection is held in memory; put the user's prior clipboard back.
+    if let Some(previous) = previous {
+        let _ = set_clipboard_text(&previous);
     }
     Ok(selected)
 }

@@ -121,10 +121,10 @@
         {testBusy ? "Testing…" : "Test insertion"}
       </button>
       {#if testResult}
-        <p class="text-sm text-emerald-400">{testResult}</p>
+        <p aria-live="polite" class="text-sm text-emerald-400">{testResult}</p>
       {/if}
       {#if testError}
-        <p class="text-sm text-rose-400">{testError}</p>
+        <p role="alert" class="text-sm text-rose-400">{testError}</p>
       {/if}
     </div>
   </div>

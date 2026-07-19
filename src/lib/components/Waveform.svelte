@@ -32,8 +32,10 @@
     ctx.clearRect(0, 0, w, h);
     const gap = 2;
     const bw = (w - gap * (bars - 1)) / bars;
+    // Right-align samples so the newest level is always at the trailing edge.
+    const pad = Math.max(0, bars - levels.length);
     for (let i = 0; i < bars; i++) {
-      const v = levels[i] ?? 0.05;
+      const v = i < pad ? 0.05 : (levels[i - pad] ?? 0.05);
       const bh = Math.max(3, v * h * 0.9);
       const x = i * (bw + gap);
       const y = (h - bh) / 2;

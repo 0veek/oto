@@ -25,6 +25,22 @@ pub async fn set_config(app: AppHandle, mut cfg: AppConfig) -> Result<(), OtoErr
     cfg.hotkey = hotkeys::normalize_hotkey(&cfg.hotkey);
     cfg.history_limit = cfg.history_limit.clamp(1, 1000);
     cfg.font_scale = cfg.font_scale.clamp(0.85, 1.25);
+    cfg.temperature = cfg.temperature.clamp(0.0, 1.0);
+    // Drop a dangling active profile pointer so the runtime never reads missing models.
+    if let Some(active_id) = cfg.active_custom_provider_id.as_deref() {
+        if !cfg
+            .custom_providers
+            .iter()
+            .any(|profile| profile.id == active_id)
+        {
+            cfg.active_custom_provider_id = None;
+        }
+    }
+    if let Some(style_id) = cfg.active_style_id.as_deref() {
+        if !cfg.styles.iter().any(|style| style.id == style_id) {
+            cfg.active_style_id = None;
+        }
+    }
     hotkeys::register_ptt(&app, &cfg.hotkey).await?;
     eprintln!("oto: config saved, hotkey active = {}", cfg.hotkey);
     save_config(&cfg)?;

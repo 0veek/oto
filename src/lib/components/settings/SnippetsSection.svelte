@@ -43,8 +43,25 @@
 
   <div class="space-y-5 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl">
     <div class="grid gap-3 sm:grid-cols-[0.8fr_1.4fr_auto]">
-      <input class="rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400/50" placeholder="my signature" bind:value={trigger} />
-      <textarea class="min-h-11 resize-y rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400/50" rows="1" placeholder="Best,&#10;Your name" bind:value={expansion}></textarea>
+      <input
+        aria-label="Spoken trigger"
+        class="rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400/50"
+        placeholder="my signature"
+        bind:value={trigger}
+        onkeydown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            addSnippet();
+          }
+        }}
+      />
+      <textarea
+        aria-label="Snippet expansion"
+        class="min-h-11 resize-y rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400/50"
+        rows="1"
+        placeholder="Best,&#10;Your name"
+        bind:value={expansion}
+      ></textarea>
       <button type="button" class="rounded-xl bg-sky-500/90 px-4 py-2.5 text-sm font-medium text-white hover:bg-sky-400" onclick={addSnippet}>Add</button>
     </div>
     {#if error}<p class="text-xs text-amber-300">{error}</p>{/if}

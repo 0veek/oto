@@ -73,7 +73,14 @@ pub fn append(
         .unwrap_or_default()
         .as_millis() as u64;
     let entry = HistoryEntry {
-        id: format!("{created_at_ms}-{}", entries.len()),
+        // Include a short unique suffix so two saves in the same millisecond never collide.
+        id: format!(
+            "{created_at_ms}-{:x}",
+            std::time::SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos()
+        ),
         created_at_ms,
         raw_text,
         final_text,

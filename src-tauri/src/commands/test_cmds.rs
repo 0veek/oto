@@ -1,12 +1,35 @@
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::time::{sleep, Duration};
 
 use crate::audio::AudioRecorder;
-use crate::config::load_config;
+use crate::config::{load_config, IdleBehavior};
 use crate::error::OtoError;
 use crate::injection::{inject_text, paste_tooling_summary, InjectResult};
 use crate::pipeline::events::{PipelineEvent, PipelineState};
+use crate::pipeline::orchestrator::position_overlay;
 use crate::state::AppState;
+
+fn show_overlay_for_test(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("overlay") {
+        position_overlay(&window);
+        let _ = window.set_always_on_top(true);
+        let _ = window.set_skip_taskbar(true);
+        let _ = window.show();
+        let _ = window.unminimize();
+    }
+}
+
+fn hide_overlay_after_test(app: &AppHandle) {
+    let keep = load_config()
+        .map(|config| config.idle_behavior == IdleBehavior::Minimal)
+        .unwrap_or(false);
+    if keep {
+        return;
+    }
+    if let Some(window) = app.get_webview_window("overlay") {
+        let _ = window.hide();
+    }
+}
 
 /// Transcribe the last PTT capture with the configured STT provider.
 /// Returns an error if no audio has been recorded yet.
@@ -39,7 +62,14 @@ pub async fn test_injection() -> Result<String, OtoError> {
 
 /// Capture ~2s of microphone audio and stream level events (no STT).
 #[tauri::command]
-pub async fn test_microphone(app: AppHandle) -> Result<(), OtoError> {
+pub async fn test_microphone(app: AppHandle, state: State<'_, AppState>) -> Result<(), OtoError> {
+    if !state.pipeline.is_idle() {
+        return Err(OtoError::Message(
+            "Finish or cancel the current dictation before testing the microphone".into(),
+        ));
+    }
+
+    show_overlay_for_test(&app);
     let _ = app.emit(
         "pipeline://event",
         PipelineEvent::state(PipelineState::Listening, Some("Mic test".into())),
@@ -54,6 +84,14 @@ pub async fn test_microphone(app: AppHandle) -> Result<(), OtoError> {
                     message: e.to_string(),
                 },
             );
+            show_overlay_for_test(&app);
+            // Keep the error visible briefly, then return to idle appearance.
+            sleep(Duration::from_secs(3)).await;
+            let _ = app.emit(
+                "pipeline://event",
+                PipelineEvent::state(PipelineState::Idle, None),
+            );
+            hide_overlay_after_test(&app);
             return Err(e);
         }
     };
@@ -67,5 +105,6 @@ pub async fn test_microphone(app: AppHandle) -> Result<(), OtoError> {
         "pipeline://event",
         PipelineEvent::state(PipelineState::Idle, None),
     );
+    hide_overlay_after_test(&app);
     Ok(())
 }
