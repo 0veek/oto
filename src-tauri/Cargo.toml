@@ -35,3 +35,9 @@ arboard = { version = "3.6.1", features = ["wayland-data-control"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"
+
+# Production builds serve the embedded frontend (frontendDist).
+# `tauri dev` disables this so the app loads the Vite dev server instead.
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
