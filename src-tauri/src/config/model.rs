@@ -52,7 +52,7 @@ impl Default for AppConfig {
             polish_enabled: true,
             temperature: 0.2,
             tone_hint: String::new(),
-            hotkey: "Ctrl+Super+Space".into(),
+            hotkey: "Ctrl+Shift+Space".into(),
             language: None,
             dictionary: vec![],
             injection_mode: InjectionMode::Auto,

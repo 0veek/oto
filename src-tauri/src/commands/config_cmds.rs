@@ -22,9 +22,11 @@ pub fn get_config() -> Result<AppConfig, OtoError> {
 }
 
 #[tauri::command]
-pub fn set_config(app: AppHandle, cfg: AppConfig) -> Result<(), OtoError> {
-    // Re-register before saving so invalid hotkeys are rejected without writing config.
+pub fn set_config(app: AppHandle, mut cfg: AppConfig) -> Result<(), OtoError> {
+    // Normalize + re-register before saving so invalid hotkeys are rejected without writing.
+    cfg.hotkey = hotkeys::normalize_hotkey(&cfg.hotkey);
     hotkeys::register_ptt(&app, &cfg.hotkey)?;
+    eprintln!("oto: config saved, hotkey active = {}", cfg.hotkey);
     save_config(&cfg)?;
     // Apply idle appearance immediately when settings change.
     if let Some(overlay) = app.get_webview_window("overlay") {

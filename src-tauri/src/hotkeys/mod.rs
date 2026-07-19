@@ -5,7 +5,37 @@ use tauri_plugin_global_shortcut::{
     Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
 };
 
-/// Parse a human-readable hotkey string like `Ctrl+Super+Space` into a [`Shortcut`].
+/// Normalize user input like `ctrl + alt + space` → `Ctrl+Alt+Space`.
+pub fn normalize_hotkey(s: &str) -> String {
+    s.split('+')
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(|part| -> String {
+            match part.to_ascii_lowercase().as_str() {
+                "ctrl" | "control" => "Ctrl".into(),
+                "alt" | "option" => "Alt".into(),
+                "shift" => "Shift".into(),
+                "super" | "meta" | "win" | "cmd" | "command" => "Super".into(),
+                "space" => "Space".into(),
+                "enter" | "return" => "Enter".into(),
+                "tab" => "Tab".into(),
+                "escape" | "esc" => "Escape".into(),
+                other if other.len() == 1 => other.to_ascii_uppercase(),
+                other => {
+                    // Preserve unknown tokens as-is (parse will error later).
+                    let mut c = other.chars();
+                    match c.next() {
+                        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                        None => String::new(),
+                    }
+                }
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
+/// Parse a human-readable hotkey string like `Ctrl+Alt+Space` into a [`Shortcut`].
 pub fn parse_hotkey(s: &str) -> OtoResult<Shortcut> {
     let mut mods = Modifiers::empty();
     let mut key: Option<Code> = None;
@@ -75,41 +105,78 @@ pub fn unregister_all_hotkeys<R: Runtime>(app: &AppHandle<R>) -> OtoResult<()> {
         .map_err(|e| OtoError::Message(e.to_string()))
 }
 
-/// Register the push-to-talk hotkey: Pressed → `ptt_down`, Released → `ptt_up`.
+/// Register the push-to-talk hotkey.
+///
+/// Behavior (Wayland-friendly):
+/// - **Press** while idle → start listening
+/// - **Press** while already listening → stop & process (toggle fallback)
+/// - **Release** while listening → stop & process (classic hold-to-talk)
 ///
 /// Clears any previously registered shortcuts first so re-registration on config
 /// save replaces the old binding.
 pub fn register_ptt<R: Runtime>(app: &AppHandle<R>, hotkey: &str) -> OtoResult<()> {
-    let shortcut = parse_hotkey(hotkey)?;
+    let normalized = normalize_hotkey(hotkey);
+    let shortcut = parse_hotkey(&normalized)?;
+    let shortcut_for_check = parse_hotkey(&normalized)?;
 
     // Best-effort clear so changing the binding does not leave stale shortcuts.
     let _ = unregister_all_hotkeys(app);
 
     app.global_shortcut()
-        .on_shortcut(shortcut, |app, _sc, event| {
+        .on_shortcut(shortcut, |app, sc, event| {
+            eprintln!(
+                "oto hotkey event: {:?} state={:?} id={}",
+                sc,
+                event.state(),
+                sc.id()
+            );
             let Some(state) = app.try_state::<AppState>() else {
+                eprintln!("oto hotkey: AppState missing");
                 return;
             };
             match event.state() {
                 ShortcutState::Pressed => {
                     let p = state.pipeline.clone();
                     tauri::async_runtime::spawn(async move {
-                        if let Err(e) = p.ptt_down().await {
-                            eprintln!("ptt_down (hotkey): {e}");
+                        // Toggle-friendly: second press stops if still listening
+                        // (release events are unreliable on many Wayland setups).
+                        if p.is_listening() {
+                            eprintln!("oto hotkey: Pressed while listening → ptt_up");
+                            if let Err(e) = p.ptt_up().await {
+                                eprintln!("ptt_up (hotkey press): {e}");
+                            }
+                        } else {
+                            eprintln!("oto hotkey: Pressed → ptt_down");
+                            if let Err(e) = p.ptt_down().await {
+                                eprintln!("ptt_down (hotkey): {e}");
+                            }
                         }
                     });
                 }
                 ShortcutState::Released => {
                     let p = state.pipeline.clone();
                     tauri::async_runtime::spawn(async move {
-                        if let Err(e) = p.ptt_up().await {
-                            eprintln!("ptt_up (hotkey): {e}");
+                        if p.is_listening() {
+                            eprintln!("oto hotkey: Released → ptt_up");
+                            if let Err(e) = p.ptt_up().await {
+                                eprintln!("ptt_up (hotkey release): {e}");
+                            }
                         }
                     });
                 }
             }
         })
-        .map_err(|e| OtoError::Message(e.to_string()))?;
+        .map_err(|e| OtoError::Message(format!("failed to register hotkey '{normalized}': {e}")))?;
+
+    // Verify registration where the backend supports it.
+    if app.global_shortcut().is_registered(shortcut_for_check) {
+        eprintln!("hotkey registered and active: {normalized}");
+    } else {
+        eprintln!(
+            "hotkey register returned OK but is_registered=false for {normalized} \
+             (compositor may block global shortcuts — use tray Start/Stop)"
+        );
+    }
 
     Ok(())
 }
@@ -124,6 +191,20 @@ mod tests {
         assert_eq!(sc.key, Code::Space);
         assert!(sc.mods.contains(Modifiers::CONTROL));
         assert!(sc.mods.contains(Modifiers::SUPER));
+    }
+
+    #[test]
+    fn parses_ctrl_alt_space_lowercase() {
+        let sc = parse_hotkey("ctrl+alt+space").unwrap();
+        assert_eq!(sc.key, Code::Space);
+        assert!(sc.mods.contains(Modifiers::CONTROL));
+        assert!(sc.mods.contains(Modifiers::ALT));
+    }
+
+    #[test]
+    fn normalize_hotkey_formats() {
+        assert_eq!(normalize_hotkey("ctrl + alt + space"), "Ctrl+Alt+Space");
+        assert_eq!(normalize_hotkey("CTRL+ALT+SPACE"), "Ctrl+Alt+Space");
     }
 
     #[test]

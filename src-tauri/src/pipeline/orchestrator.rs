@@ -63,9 +63,16 @@ impl Pipeline {
         if let Some(w) = self.app.get_webview_window("overlay") {
             position_overlay(&w);
             let _ = w.set_always_on_top(true);
+            let _ = w.set_skip_taskbar(true);
             // Do not steal keyboard focus from the app the user is dictating into.
-            let _ = w.show();
+            if let Err(e) = w.show() {
+                eprintln!("oto: overlay.show failed: {e}");
+            } else {
+                eprintln!("oto: overlay shown");
+            }
             let _ = w.unminimize();
+        } else {
+            eprintln!("oto: overlay window missing");
         }
     }
 
@@ -93,6 +100,13 @@ impl Pipeline {
         self.lock_inner()
             .map(|g| g.phase == Phase::Idle)
             .unwrap_or(true)
+    }
+
+    /// True while actively capturing audio (between ptt_down and ptt_up).
+    pub fn is_listening(&self) -> bool {
+        self.lock_inner()
+            .map(|g| g.phase == Phase::Listening)
+            .unwrap_or(false)
     }
 
     /// True if this processing session was cancelled or superseded.

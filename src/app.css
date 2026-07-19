@@ -11,6 +11,7 @@ body,
 #app {
   margin: 0;
   padding: 0;
-  background: transparent;
+  /* Overlay window is no longer fully transparent (Wayland reliability). */
+  background: #0f172a;
   overflow: hidden;
 }
