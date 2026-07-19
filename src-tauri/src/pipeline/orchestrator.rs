@@ -1,4 +1,4 @@
-//! PTT lifecycle: record → (STT placeholders) → events.
+//! PTT lifecycle: record → STT → optional polish → events.
 
 use std::sync::Mutex;
 
@@ -6,14 +6,17 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::time::{sleep, Duration};
 
 use crate::audio::AudioRecorder;
+use crate::config::load_config;
 use crate::error::{OtoError, OtoResult};
 use crate::pipeline::events::{PipelineEvent, PipelineState};
+use crate::providers::{
+    client_from_config, PolishContext, SpeechToText, TextPolisher,
+};
 
 struct Inner {
     recorder: Option<AudioRecorder>,
     listening: bool,
-    /// Last captured WAV bytes (for STT in Task 12).
-    #[allow(dead_code)]
+    /// Last captured WAV bytes (for STT / test_transcription).
     last_wav: Option<Vec<u8>>,
 }
 
@@ -60,6 +63,22 @@ impl Pipeline {
             .map_err(|_| OtoError::Message("pipeline lock poisoned".into()))
     }
 
+    /// Clone of the last captured WAV, if any.
+    pub fn last_wav(&self) -> OtoResult<Option<Vec<u8>>> {
+        let inner = self.lock_inner()?;
+        Ok(inner.last_wav.clone())
+    }
+
+    /// Run STT on the last recorded buffer (settings "Test transcription").
+    pub async fn transcribe_last(&self) -> OtoResult<String> {
+        let wav = self
+            .last_wav()?
+            .ok_or_else(|| OtoError::Message("No audio yet — dictate first".into()))?;
+        let cfg = load_config()?;
+        let client = client_from_config(&cfg)?;
+        client.transcribe(&wav, cfg.language.as_deref()).await
+    }
+
     pub async fn ptt_down(&self) -> OtoResult<()> {
         {
             let inner = self.lock_inner()?;
@@ -103,11 +122,12 @@ impl Pipeline {
             inner.recorder.take()
         };
 
-        if let Some(rec) = recorder {
+        let wav = if let Some(rec) = recorder {
             match rec.stop() {
                 Ok((wav, _sample_rate)) => {
                     let mut inner = self.lock_inner()?;
-                    inner.last_wav = Some(wav);
+                    inner.last_wav = Some(wav.clone());
+                    wav
                 }
                 Err(e) => {
                     self.emit(PipelineEvent::Error {
@@ -118,16 +138,92 @@ impl Pipeline {
                     return Err(e);
                 }
             }
-        }
+        } else {
+            self.emit(PipelineEvent::Error {
+                message: "No audio captured".into(),
+            });
+            self.emit_state(PipelineState::Idle);
+            self.hide_overlay();
+            return Ok(());
+        };
 
-        // STT placeholders (wired in Task 11+)
         self.emit_state(PipelineState::Processing);
+
+        let cfg = match load_config() {
+            Ok(c) => c,
+            Err(e) => {
+                self.emit(PipelineEvent::Error {
+                    message: e.to_string(),
+                });
+                self.emit_state(PipelineState::Idle);
+                self.hide_overlay();
+                return Err(e);
+            }
+        };
+
+        let client = match client_from_config(&cfg) {
+            Ok(c) => c,
+            Err(e) => {
+                self.emit(PipelineEvent::Error {
+                    message: e.to_string(),
+                });
+                self.emit_state(PipelineState::Idle);
+                self.hide_overlay();
+                return Err(e);
+            }
+        };
+
         self.emit(PipelineEvent::Phase {
             phase: "transcribing".into(),
         });
-        sleep(Duration::from_millis(100)).await;
 
-        self.emit_state(PipelineState::Done);
+        let mut text = match client.transcribe(&wav, cfg.language.as_deref()).await {
+            Ok(t) => t,
+            Err(e) => {
+                self.emit(PipelineEvent::Error {
+                    message: e.to_string(),
+                });
+                self.emit_state(PipelineState::Idle);
+                self.hide_overlay();
+                return Err(e);
+            }
+        };
+
+        if text.trim().is_empty() {
+            self.emit(PipelineEvent::Error {
+                message: "No speech detected".into(),
+            });
+            self.emit_state(PipelineState::Idle);
+            self.hide_overlay();
+            return Ok(());
+        }
+
+        if cfg.polish_enabled {
+            self.emit(PipelineEvent::Phase {
+                phase: "polishing".into(),
+            });
+            let ctx = PolishContext {
+                language: cfg.language.clone(),
+                dictionary: cfg.dictionary.clone(),
+                tone_hint: cfg.tone_hint.clone(),
+            };
+            match client.polish(&text, &ctx).await {
+                Ok(polished) => text = polished,
+                Err(e) => {
+                    // Spec: fall back to raw + toast (do not abort pipeline).
+                    self.emit(PipelineEvent::state(
+                        PipelineState::Processing,
+                        Some(format!("Polish failed, using raw: {e}")),
+                    ));
+                }
+            }
+        }
+
+        // Until injection (Task 13): surface text via Done detail so UI can show it.
+        self.emit(PipelineEvent::state(
+            PipelineState::Done,
+            Some(text),
+        ));
         sleep(Duration::from_millis(700)).await;
 
         self.emit_state(PipelineState::Idle);

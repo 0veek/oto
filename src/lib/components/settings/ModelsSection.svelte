@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { invoke } from "@tauri-apps/api/core";
   import type { AppConfig } from "$lib/types";
 
   let {
@@ -6,6 +7,23 @@
   }: {
     config: AppConfig;
   } = $props();
+
+  let testBusy = $state(false);
+  let testResult = $state<string | null>(null);
+  let testError = $state<string | null>(null);
+
+  async function testTranscription() {
+    testBusy = true;
+    testResult = null;
+    testError = null;
+    try {
+      testResult = await invoke<string>("test_transcription");
+    } catch (e) {
+      testError = String(e);
+    } finally {
+      testBusy = false;
+    }
+  }
 </script>
 
 <section class="space-y-6">
@@ -87,5 +105,34 @@
         Optional guidance for how polished text should sound.
       </span>
     </label>
+
+    <div class="space-y-2 border-t border-white/10 pt-5">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-sm font-medium text-slate-200">Test transcription</div>
+          <div class="text-xs text-slate-500">
+            Run STT on the last dictation capture (dictate once first).
+          </div>
+        </div>
+        <button
+          type="button"
+          class="shrink-0 rounded-xl bg-sky-500/90 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={testBusy}
+          onclick={testTranscription}
+        >
+          {testBusy ? "Transcribing…" : "Test transcription"}
+        </button>
+      </div>
+      {#if testResult !== null}
+        <p class="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+          {testResult || "(empty transcript)"}
+        </p>
+      {/if}
+      {#if testError}
+        <p class="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+          {testError}
+        </p>
+      {/if}
+    </div>
   </div>
 </section>

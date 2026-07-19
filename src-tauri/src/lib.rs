@@ -96,6 +96,7 @@ pub fn run() {
             commands::pipeline_cmds::ptt_up,
             commands::pipeline_cmds::cancel_dictation,
             commands::pipeline_cmds::debug_preview_listening,
+            commands::test_cmds::test_transcription,
         ])
         .setup(|app| {
             let pipeline = Arc::new(Pipeline::new(app.handle().clone()));
