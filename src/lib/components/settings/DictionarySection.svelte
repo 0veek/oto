@@ -44,8 +44,7 @@
   <header>
     <h2 class="text-xl font-semibold tracking-tight">Dictionary</h2>
     <p class="mt-1 text-sm text-slate-400">
-      Words and phrases included in polish context so the model keeps preferred spellings
-      (names, product terms, jargon).
+      Names, product terms, and jargon used for both STT vocabulary prompting and polishing.
     </p>
   </header>
 
@@ -99,8 +98,8 @@
     {/if}
 
     <p class="text-xs leading-relaxed text-slate-500">
-      Dictionary terms are sent to your LLM only when polish is enabled. They are not used by
-      STT in this MVP.
+      With vocabulary boosting enabled, terms are passed to the active transcription engine.
+      Cloud engines may interpret prompt support differently.
     </p>
   </div>
 </section>

@@ -2,6 +2,7 @@ mod audio;
 mod commands;
 mod config;
 mod error;
+mod features;
 mod hotkeys;
 mod injection;
 mod pipeline;
@@ -14,21 +15,34 @@ use config::{load_config, save_config, IdleBehavior};
 use pipeline::orchestrator::position_overlay;
 use pipeline::Pipeline;
 use state::AppState;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, Runtime,
 };
 use tokio::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    let start = MenuItem::with_id(app, "start_listening", "Start Listening", true, None::<&str>)?;
+    let start = MenuItem::with_id(
+        app,
+        "start_listening",
+        "Start Listening",
+        true,
+        None::<&str>,
+    )?;
     let stop = MenuItem::with_id(app, "stop_listening", "Stop Listening", true, None::<&str>)?;
+    let command = MenuItem::with_id(
+        app,
+        "command_mode",
+        "Command Mode (selected text)",
+        true,
+        None::<&str>,
+    )?;
     let open = MenuItem::with_id(app, "open_settings", "Open Settings", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&start, &stop, &open, &quit])?;
+    let menu = Menu::with_items(app, &[&start, &stop, &command, &open, &quit])?;
 
     let icon = app
         .default_window_icon()
@@ -55,6 +69,16 @@ fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
                     tauri::async_runtime::spawn(async move {
                         if let Err(e) = pipeline.ptt_up().await {
                             eprintln!("ptt_up (tray): {e}");
+                        }
+                    });
+                }
+            }
+            "command_mode" => {
+                if let Some(state) = app.try_state::<AppState>() {
+                    let pipeline = state.pipeline.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = pipeline.command_down(0).await {
+                            eprintln!("command mode (tray): {e}");
                         }
                     });
                 }
@@ -96,15 +120,25 @@ pub fn run() {
             commands::config_cmds::set_api_key,
             commands::config_cmds::api_key_present,
             commands::config_cmds::api_key_hint,
+            commands::config_cmds::set_provider_api_key,
+            commands::config_cmds::provider_api_key_present,
             commands::config_cmds::get_app_version,
             commands::config_cmds::set_overlay_position,
+            commands::history_cmds::get_history,
+            commands::history_cmds::delete_history_entry,
+            commands::history_cmds::clear_history,
+            commands::history_cmds::copy_history_text,
             commands::pipeline_cmds::ptt_down,
             commands::pipeline_cmds::ptt_up,
+            commands::pipeline_cmds::start_command_mode,
             commands::pipeline_cmds::cancel_dictation,
             commands::pipeline_cmds::debug_preview_listening,
             commands::test_cmds::test_transcription,
             commands::test_cmds::test_injection,
             commands::test_cmds::test_microphone,
+            commands::sync_cmds::set_sync_token,
+            commands::sync_cmds::sync_token_present,
+            commands::sync_cmds::sync_now,
         ])
         .setup(|app| {
             app.manage(hotkeys::HotkeyManager::default());

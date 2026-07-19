@@ -16,7 +16,12 @@
     {
       value: "auto",
       label: "Auto",
-      hint: "AT-SPI when available, then clipboard + paste, else clipboard only.",
+      hint: "AT-SPI, direct ydotool/wtype typing, clipboard + paste, then clipboard only.",
+    },
+    {
+      value: "direct_type",
+      label: "Direct type",
+      hint: "Type through ydotool, wtype, or xdotool without touching the clipboard.",
     },
     {
       value: "clipboard_paste",
@@ -87,10 +92,11 @@
     <div
       class="rounded-xl border border-white/10 bg-slate-900/30 px-4 py-3 text-xs leading-relaxed text-slate-400"
     >
-      <p class="font-medium text-slate-300">Paste tools</p>
+      <p class="font-medium text-slate-300">Injection tools</p>
       <p class="mt-1">
-        Wayland: install <code class="rounded bg-white/5 px-1">wtype</code>
-        (preferred) or <code class="rounded bg-white/5 px-1">ydotool</code>.
+        Wayland: install <code class="rounded bg-white/5 px-1">ydotool</code>
+        (best for Chromium/Electron when its daemon is running) and/or
+        <code class="rounded bg-white/5 px-1">wtype</code>.
         X11: install <code class="rounded bg-white/5 px-1">xdotool</code>.
         Without a tool, Auto falls back to clipboard-only.
       </p>
@@ -100,7 +106,8 @@
       <div>
         <div class="text-sm font-medium text-slate-200">Test insertion</div>
         <p class="mt-0.5 text-xs text-slate-500">
-          Focus another app (or a text field outside Oto), then click Test. Injects
+          Click Test, then immediately focus a text field in another app. Oto waits briefly, then
+          injects
           <code class="rounded bg-white/5 px-1">Oto injection test</code>
           using the mode above.
         </p>

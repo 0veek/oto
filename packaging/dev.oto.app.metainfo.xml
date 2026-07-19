@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.oto.app</id>
+  <name>Oto</name>
+  <summary>System-wide push-to-talk voice dictation for Linux</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>Oto captures speech from a global push-to-talk shortcut, transcribes it locally or through a chosen provider, optionally improves the writing, and inserts it into the focused application.</p>
+  </description>
+  <launchable type="desktop-id">dev.oto.app.desktop</launchable>
+  <url type="homepage">https://github.com/0veek/oto</url>
+  <url type="bugtracker">https://github.com/0veek/oto/issues</url>
+  <provides><binary>oto</binary></provides>
+  <releases>
+    <release version="0.1.0" date="2026-07-19" />
+  </releases>
+</component>
+

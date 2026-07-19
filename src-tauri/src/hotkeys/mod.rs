@@ -460,9 +460,10 @@ fn configure_hyprland_binding(hotkey: &str) -> OtoResult<()> {
             .filter(|bind| same_chord(bind, stale.modmask, &stale.key))
             .count();
         if chord_users != 1 {
-            return Err(OtoError::Message(format!(
+            return Err(OtoError::Message(
                 "cannot replace Oto's old Hyprland hotkey because that chord has another binding"
-            )));
+                    .into(),
+            ));
         }
     }
 

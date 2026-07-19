@@ -171,6 +171,21 @@ impl AudioRecorder {
         let wav = write_wav_i16_mono(&mono, self.sample_rate)?;
         Ok((wav, self.sample_rate))
     }
+
+    /// Encode a point-in-time copy without stopping capture. Used for local
+    /// Whisper previews while the user is still speaking.
+    pub fn snapshot_wav(&self) -> OtoResult<Option<Vec<u8>>> {
+        let mono = self
+            .samples
+            .lock()
+            .map_err(|_| OtoError::Message("sample buffer poisoned".into()))?
+            .clone();
+        // Avoid expensive/local low-quality inference on less than one second.
+        if mono.len() < self.sample_rate as usize {
+            return Ok(None);
+        }
+        Ok(Some(write_wav_i16_mono(&mono, self.sample_rate)?))
+    }
 }
 
 fn emit_level(app: &AppHandle, samples: &[i16]) {

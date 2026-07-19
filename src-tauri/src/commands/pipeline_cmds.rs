@@ -15,6 +15,20 @@ pub async fn ptt_up(state: State<'_, AppState>) -> Result<(), OtoError> {
     state.pipeline.ptt_up().await
 }
 
+/// Begin select-and-rewrite Command Mode. The delay gives a settings-window
+/// caller time to refocus the app containing the selection.
+#[tauri::command]
+pub async fn start_command_mode(
+    state: State<'_, AppState>,
+    focus_delay_ms: Option<u64>,
+) -> Result<(), OtoError> {
+    *state.cancel_flag.lock().await = false;
+    state
+        .pipeline
+        .command_down(focus_delay_ms.unwrap_or(0))
+        .await
+}
+
 #[tauri::command]
 pub async fn cancel_dictation(state: State<'_, AppState>) -> Result<(), OtoError> {
     *state.cancel_flag.lock().await = true;

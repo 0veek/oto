@@ -5,18 +5,23 @@ export const pipelineState = writable<PipelineState>("idle");
 export const pipelineDetail = writable<string>("");
 export const audioLevel = writable<number>(0);
 export const pipelinePhase = writable<string>("");
+export const partialTranscript = writable<string>("");
 
 export function applyPipelineEvent(ev: import("../types").PipelineEvent) {
   switch (ev.type) {
     case "state":
       pipelineState.set(ev.state);
       pipelineDetail.set(ev.detail ?? "");
+      if (ev.state === "listening" || ev.state === "idle") partialTranscript.set("");
       break;
     case "level":
       audioLevel.set(ev.level);
       break;
     case "phase":
       pipelinePhase.set(ev.phase);
+      break;
+    case "partial":
+      partialTranscript.set(ev.text);
       break;
     case "error":
       pipelineState.set("error");

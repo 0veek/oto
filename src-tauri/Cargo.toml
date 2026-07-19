@@ -34,6 +34,8 @@ async-trait = "0.1.91"
 arboard = { version = "3.6.1", features = ["wayland-data-control"] }
 ashpd = { version = "0.13.12", features = ["global_shortcuts"] }
 futures-util = "0.3.33"
+whisper-rs = "0.16.0"
+atspi = { version = "0.30.0", features = ["connection", "proxies", "tokio"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"

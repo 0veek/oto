@@ -1,6 +1,4 @@
-use crate::config::{
-    load_config, save_config, secrets, AppConfig, IdleBehavior, ProviderPreset,
-};
+use crate::config::{load_config, save_config, secrets, AppConfig, IdleBehavior, ProviderPreset};
 use crate::error::OtoError;
 use crate::hotkeys;
 use crate::pipeline::orchestrator::position_overlay;
@@ -25,6 +23,8 @@ pub fn get_config() -> Result<AppConfig, OtoError> {
 pub async fn set_config(app: AppHandle, mut cfg: AppConfig) -> Result<(), OtoError> {
     // Normalize + re-register before saving so invalid hotkeys are rejected without writing.
     cfg.hotkey = hotkeys::normalize_hotkey(&cfg.hotkey);
+    cfg.history_limit = cfg.history_limit.clamp(1, 1000);
+    cfg.font_scale = cfg.font_scale.clamp(0.85, 1.25);
     hotkeys::register_ptt(&app, &cfg.hotkey).await?;
     eprintln!("oto: config saved, hotkey active = {}", cfg.hotkey);
     save_config(&cfg)?;
@@ -64,6 +64,18 @@ pub fn api_key_hint(preset: ProviderPreset) -> Result<Option<String>, OtoError> 
             format!("{}…{}", &k[..4], &k[k.len() - 3..])
         }
     }))
+}
+
+#[tauri::command]
+pub fn set_provider_api_key(account: String, key: String) -> Result<(), OtoError> {
+    secrets::validate_account(&account)?;
+    secrets::set_api_key(&account, &key)
+}
+
+#[tauri::command]
+pub fn provider_api_key_present(account: String) -> Result<bool, OtoError> {
+    secrets::validate_account(&account)?;
+    Ok(secrets::has_api_key(&account))
 }
 
 /// Cargo package version shown in About.

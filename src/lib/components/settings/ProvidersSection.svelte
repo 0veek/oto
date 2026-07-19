@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import type { AppConfig, ProviderPreset } from "$lib/types";
+  import type { AppConfig, ProviderPreset, ProviderProfile } from "$lib/types";
 
   const PRESET_DEFAULTS: Record<Exclude<ProviderPreset, "custom">, string> = {
     open_ai: "https://api.openai.com/v1",
@@ -29,6 +29,14 @@
 
   async function refreshKeyInfo(preset: ProviderPreset) {
     try {
+      if (preset === "custom" && config.active_custom_provider_id) {
+        const present = await invoke<boolean>("provider_api_key_present", {
+          account: `custom:${config.active_custom_provider_id}`,
+        });
+        keyPresent = present;
+        keyHint = present ? "••••" : null;
+        return;
+      }
       const [present, hint] = await Promise.all([
         invoke<boolean>("api_key_present", { preset }),
         invoke<string | null>("api_key_hint", { preset }),
@@ -42,6 +50,7 @@
   }
 
   $effect(() => {
+    config.active_custom_provider_id;
     void refreshKeyInfo(config.provider_preset);
   });
 
@@ -59,10 +68,17 @@
     keyBusy = true;
     keyStatus = null;
     try {
-      await invoke("set_api_key", {
-        preset: config.provider_preset,
-        key: keyDraft,
-      });
+      if (config.provider_preset === "custom" && config.active_custom_provider_id) {
+        await invoke("set_provider_api_key", {
+          account: `custom:${config.active_custom_provider_id}`,
+          key: keyDraft,
+        });
+      } else {
+        await invoke("set_api_key", {
+          preset: config.provider_preset,
+          key: keyDraft,
+        });
+      }
       keyDraft = "";
       await refreshKeyInfo(config.provider_preset);
       keyStatus = keyPresent ? "API key saved to keyring" : "API key cleared";
@@ -71,6 +87,28 @@
     } finally {
       keyBusy = false;
     }
+  }
+
+  function addProfile() {
+    const id = globalThis.crypto?.randomUUID?.() ?? `provider-${Date.now()}`;
+    config.custom_providers = [...config.custom_providers, {
+      id,
+      name: "New provider",
+      base_url: "https://api.example.com/v1",
+      stt_model: "whisper-1",
+      polish_model: "gpt-4o-mini",
+    }];
+    config.provider_preset = "custom";
+    config.active_custom_provider_id = id;
+  }
+
+  function patchProfile(id: string, patch: Partial<ProviderProfile>) {
+    config.custom_providers = config.custom_providers.map((profile) => profile.id === id ? { ...profile, ...patch } : profile);
+  }
+
+  function removeProfile(id: string) {
+    config.custom_providers = config.custom_providers.filter((profile) => profile.id !== id);
+    if (config.active_custom_provider_id === id) config.active_custom_provider_id = null;
   }
 </script>
 
@@ -106,6 +144,31 @@
         </svg>
       </div>
     </label>
+
+    {#if config.provider_preset === "custom"}
+      <div class="space-y-3 rounded-xl border border-white/10 bg-slate-900/30 p-4">
+        <div class="flex items-center justify-between gap-3">
+          <div><div class="text-sm font-medium text-slate-200">Provider profiles</div><div class="text-xs text-slate-500">Declarative plugins for OpenAI-compatible endpoints.</div></div>
+          <button type="button" class="rounded-lg bg-white/10 px-3 py-1.5 text-xs hover:bg-white/15" onclick={addProfile}>Add profile</button>
+        </div>
+        <select class="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white" value={config.active_custom_provider_id ?? ""} onchange={(event) => config.active_custom_provider_id = event.currentTarget.value || null}>
+          <option value="">Legacy custom fields below</option>
+          {#each config.custom_providers as profile (profile.id)}<option value={profile.id}>{profile.name}</option>{/each}
+        </select>
+        {#if config.active_custom_provider_id}
+          {@const profile = config.custom_providers.find((item) => item.id === config.active_custom_provider_id)}
+          {#if profile}
+            <div class="grid gap-2 sm:grid-cols-2">
+              <input aria-label="Profile name" class="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm" value={profile.name} oninput={(event) => patchProfile(profile.id, { name: event.currentTarget.value })} />
+              <input aria-label="Profile base URL" class="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm" value={profile.base_url} oninput={(event) => patchProfile(profile.id, { base_url: event.currentTarget.value })} />
+              <input aria-label="Profile STT model" class="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm" value={profile.stt_model} oninput={(event) => patchProfile(profile.id, { stt_model: event.currentTarget.value })} />
+              <input aria-label="Profile polish model" class="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm" value={profile.polish_model} oninput={(event) => patchProfile(profile.id, { polish_model: event.currentTarget.value })} />
+            </div>
+            <button type="button" class="text-xs text-rose-300" onclick={() => removeProfile(profile.id)}>Remove this profile</button>
+          {/if}
+        {/if}
+      </div>
+    {/if}
 
     <label class="block space-y-1.5">
       <span class="text-sm font-medium text-slate-300">Base URL</span>

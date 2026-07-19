@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Oto
+Comment=System-wide push-to-talk voice dictation
+Exec=oto
+Icon=dev.oto.app
+Terminal=false
+Type=Application
+Categories=Utility;Accessibility;
+Keywords=dictation;voice;speech;transcription;accessibility;
+StartupNotify=true
+

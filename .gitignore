@@ -69,3 +69,8 @@ vite.config.ts.timestamp-*
 .superpowers/
 .worktrees/
 graphify-out/
+
+# Flatpak build output
+/.flatpak-build/
+/.flatpak-repo/
+/*.flatpak

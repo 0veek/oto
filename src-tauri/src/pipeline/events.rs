@@ -25,6 +25,11 @@ pub enum PipelineEvent {
         /// "transcribing" | "polishing" | "injecting"
         phase: String,
     },
+    Partial {
+        /// Best transcription available so far. Local streaming can update this
+        /// repeatedly; cloud providers emit it when their first text arrives.
+        text: String,
+    },
     Error {
         message: String,
     },

@@ -55,9 +55,11 @@ mod tests {
 
     #[test]
     fn save_load_roundtrip_tmp() {
-        let mut cfg = AppConfig::default();
-        cfg.dictionary = vec!["Oto".into(), "Tauri".into()];
-        cfg.polish_enabled = false;
+        let cfg = AppConfig {
+            dictionary: vec!["Oto".into(), "Tauri".into()],
+            polish_enabled: false,
+            ..AppConfig::default()
+        };
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("config.json");
         fs::write(&path, serde_json::to_string_pretty(&cfg).unwrap()).unwrap();

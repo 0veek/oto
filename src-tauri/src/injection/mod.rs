@@ -1,21 +1,25 @@
-//! Hybrid text injection: AT-SPI → clipboard+paste → clipboard-only.
+//! Hybrid text injection: AT-SPI → direct typing → clipboard+paste → clipboard-only.
 
 mod atspi_inject;
 mod clipboard;
 mod paste;
 
-pub use clipboard::set_clipboard_text;
-pub use paste::{detect_session, simulate_paste, tool_exists, SessionKind};
+pub use clipboard::{get_clipboard_text, set_clipboard_text};
+pub use paste::{
+    detect_session, simulate_copy, simulate_paste, simulate_type, tool_exists, SessionKind,
+};
 
 use crate::config::InjectionMode;
-use crate::error::OtoResult;
-use atspi_inject::try_atspi_insert;
+use crate::error::{OtoError, OtoResult};
+use atspi_inject::{try_atspi_insert, try_atspi_selection};
 
 /// How text was delivered to the target application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InjectResult {
     /// Inserted via AT-SPI2 focused text interface.
     Atspi,
+    /// Typed directly through ydotool/wtype/xdotool.
+    DirectTyped,
     /// Clipboard written and paste key combo simulated.
     Pasted,
     /// Clipboard written only (user must paste manually).
@@ -24,7 +28,8 @@ pub enum InjectResult {
 
 /// Inject `text` according to `mode`.
 ///
-/// - **Auto:** AT-SPI → clipboard+paste → clipboard-only fallback
+/// - **Auto:** AT-SPI → direct typing → clipboard+paste → clipboard-only fallback
+/// - **DirectType:** ydotool/wtype/xdotool virtual-keyboard typing
 /// - **ClipboardPaste:** set clipboard then simulate paste (errors if paste fails)
 /// - **ClipboardOnly:** set clipboard only
 pub async fn inject_text(text: &str, mode: &InjectionMode) -> OtoResult<InjectResult> {
@@ -32,6 +37,10 @@ pub async fn inject_text(text: &str, mode: &InjectionMode) -> OtoResult<InjectRe
         InjectionMode::ClipboardOnly => {
             set_clipboard_text(text)?;
             Ok(InjectResult::ClipboardOnly)
+        }
+        InjectionMode::DirectType => {
+            simulate_type(text)?;
+            Ok(InjectResult::DirectTyped)
         }
         InjectionMode::ClipboardPaste => {
             set_clipboard_text(text)?;
@@ -41,6 +50,10 @@ pub async fn inject_text(text: &str, mode: &InjectionMode) -> OtoResult<InjectRe
         InjectionMode::Auto => {
             if try_atspi_insert(text).await? {
                 return Ok(InjectResult::Atspi);
+            }
+            match simulate_type(text) {
+                Ok(()) => return Ok(InjectResult::DirectTyped),
+                Err(error) => eprintln!("oto injection: direct typing failed: {error}"),
             }
             set_clipboard_text(text)?;
             match simulate_paste() {
@@ -52,6 +65,40 @@ pub async fn inject_text(text: &str, mode: &InjectionMode) -> OtoResult<InjectRe
             }
         }
     }
+}
+
+/// Copy the focused application's selection for Command Mode. A sentinel makes
+/// it possible to distinguish a real selection from a rejected synthetic key.
+pub async fn capture_selected_text() -> OtoResult<String> {
+    if let Some(selected) = try_atspi_selection().await? {
+        return Ok(selected);
+    }
+    let previous = get_clipboard_text().ok();
+    let sentinel = format!(
+        "__oto_selection_{}__",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    );
+    set_clipboard_text(&sentinel)?;
+    if let Err(error) = simulate_copy() {
+        if let Some(previous) = previous {
+            let _ = set_clipboard_text(&previous);
+        }
+        return Err(error);
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(160)).await;
+    let selected = get_clipboard_text()?;
+    if selected == sentinel || selected.trim().is_empty() {
+        if let Some(previous) = previous {
+            let _ = set_clipboard_text(&previous);
+        }
+        return Err(OtoError::Message(
+            "No selected text found — select text in the target app first".into(),
+        ));
+    }
+    Ok(selected)
 }
 
 /// Lightweight diagnostics for settings / logs (touches public paste helpers).

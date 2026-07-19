@@ -7,16 +7,25 @@
   import ModelsSection from "$lib/components/settings/ModelsSection.svelte";
   import HotkeysSection from "$lib/components/settings/HotkeysSection.svelte";
   import DictionarySection from "$lib/components/settings/DictionarySection.svelte";
+  import SnippetsSection from "$lib/components/settings/SnippetsSection.svelte";
+  import StylesSection from "$lib/components/settings/StylesSection.svelte";
+  import HistorySection from "$lib/components/settings/HistorySection.svelte";
+  import PrivacySection from "$lib/components/settings/PrivacySection.svelte";
   import AppearanceSection from "$lib/components/settings/AppearanceSection.svelte";
   import InjectionSection from "$lib/components/settings/InjectionSection.svelte";
   import AboutSection from "$lib/components/settings/AboutSection.svelte";
+  import { applyTheme } from "$lib/theme";
 
   const SECTIONS = [
     { id: "providers", label: "Providers" },
     { id: "models", label: "Models" },
     { id: "hotkeys", label: "Hotkeys" },
     { id: "dictionary", label: "Dictionary" },
+    { id: "snippets", label: "Snippets" },
+    { id: "styles", label: "Styles & commands" },
+    { id: "history", label: "History" },
     { id: "appearance", label: "Appearance" },
+    { id: "privacy", label: "Privacy & sync" },
     { id: "injection", label: "Injection" },
     { id: "about", label: "About" },
   ] as const;
@@ -34,7 +43,10 @@
     "models",
     "hotkeys",
     "dictionary",
+    "snippets",
+    "styles",
     "appearance",
+    "privacy",
     "injection",
   ];
 
@@ -60,6 +72,24 @@
         idle_behavior: "hide",
         overlay_x: null,
         overlay_y: null,
+        stt_backend: "cloud",
+        local_whisper_model_path: "",
+        vocabulary_boost: true,
+        snippets: [],
+        styles: [
+          { id: "professional", name: "Professional", prompt: "Professional, clear, and concise." },
+          { id: "casual", name: "Casual", prompt: "Natural and friendly." },
+        ],
+        active_style_id: null,
+        history_enabled: true,
+        history_limit: 100,
+        streaming_enabled: false,
+        theme: "midnight",
+        reduce_motion: false,
+        font_scale: 1,
+        custom_providers: [],
+        active_custom_provider_id: null,
+        sync: { enabled: false, endpoint: "" },
       };
     }
   }
@@ -85,6 +115,10 @@
   onMount(() => {
     void loadConfig();
   });
+
+  $effect(() => {
+    if (config) applyTheme(config.theme, config.reduce_motion, config.font_scale);
+  });
 </script>
 
 {#if !config}
@@ -95,6 +129,7 @@
   <SettingsShell
     sections={[...SECTIONS]}
     {active}
+    theme={config.theme}
     onselect={(id) => {
       active = id as SectionId;
       saveStatus = null;
@@ -117,8 +152,16 @@
         <HotkeysSection bind:config />
       {:else if active === "dictionary"}
         <DictionarySection bind:config />
+      {:else if active === "snippets"}
+        <SnippetsSection bind:config />
+      {:else if active === "styles"}
+        <StylesSection bind:config />
+      {:else if active === "history"}
+        <HistorySection />
       {:else if active === "appearance"}
         <AppearanceSection bind:config />
+      {:else if active === "privacy"}
+        <PrivacySection bind:config />
       {:else if active === "injection"}
         <InjectionSection bind:config />
       {:else if active === "about"}

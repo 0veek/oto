@@ -6,18 +6,18 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition};
 use tokio::time::{sleep, Duration};
 
 use crate::audio::AudioRecorder;
-use crate::config::{load_config, IdleBehavior};
+use crate::config::{load_config, AppConfig, IdleBehavior, SttBackend};
 use crate::error::{OtoError, OtoResult};
-use crate::injection::{inject_text, InjectResult};
+use crate::features::{history, snippets::expand_snippet};
+use crate::injection::{capture_selected_text, inject_text, InjectResult};
 use crate::pipeline::events::{PipelineEvent, PipelineState};
 use crate::providers::{
-    client_from_config, OpenAiCompatClient, PolishContext, SpeechToText, TextPolisher,
+    client_from_config, LocalWhisperClient, OpenAiCompatClient, PolishContext, SpeechToText,
+    TextPolisher, TranscriptionContext,
 };
 use crate::state::AppState;
 
-async fn client_from_config_async(
-    cfg: &crate::config::AppConfig,
-) -> OtoResult<OpenAiCompatClient> {
+async fn client_from_config_async(cfg: &crate::config::AppConfig) -> OtoResult<OpenAiCompatClient> {
     // keyring's Secret Service backend is synchronous and internally blocks on
     // Tokio. Run it outside the async worker to avoid nested-runtime panics.
     let cfg = cfg.clone();
@@ -26,12 +26,55 @@ async fn client_from_config_async(
         .map_err(|error| OtoError::Message(format!("credential lookup task failed: {error}")))?
 }
 
+fn transcription_context(cfg: &AppConfig) -> TranscriptionContext {
+    TranscriptionContext {
+        language: cfg.language.clone(),
+        vocabulary_prompt: if cfg.vocabulary_boost && !cfg.dictionary.is_empty() {
+            Some(format!(
+                "Preferred names, spellings, and domain terms: {}",
+                cfg.dictionary.join(", ")
+            ))
+        } else {
+            None
+        },
+    }
+}
+
+async fn transcribe_from_config(cfg: &AppConfig, wav: &[u8]) -> OtoResult<String> {
+    let context = transcription_context(cfg);
+    match cfg.stt_backend {
+        SttBackend::Cloud => {
+            let client = client_from_config_async(cfg).await?;
+            client.transcribe(wav, &context).await
+        }
+        SttBackend::LocalWhisper => {
+            let client = LocalWhisperClient::new(cfg.local_whisper_model_path.clone())?;
+            client.transcribe(wav, &context).await
+        }
+    }
+}
+
 /// Exclusive pipeline phase — only one session may run at a time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Phase {
     Idle,
     Listening,
     Processing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SessionMode {
+    Dictation,
+    Command,
+}
+
+impl SessionMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Dictation => "dictation",
+            Self::Command => "command",
+        }
+    }
 }
 
 struct Inner {
@@ -43,6 +86,8 @@ struct Inner {
     cancel_flag: bool,
     /// Last captured WAV bytes (for STT / test_transcription).
     last_wav: Option<Vec<u8>>,
+    mode: SessionMode,
+    selected_text: Option<String>,
 }
 
 pub struct Pipeline {
@@ -60,6 +105,8 @@ impl Pipeline {
                 epoch: 0,
                 cancel_flag: false,
                 last_wav: None,
+                mode: SessionMode::Dictation,
+                selected_text: None,
             }),
         }
     }
@@ -123,6 +170,19 @@ impl Pipeline {
             .unwrap_or(false)
     }
 
+    fn listening_snapshot(&self, session_epoch: u64) -> OtoResult<Option<Vec<u8>>> {
+        let inner = self.lock_inner()?;
+        if inner.phase != Phase::Listening || inner.epoch != session_epoch {
+            return Ok(None);
+        }
+        inner
+            .recorder
+            .as_ref()
+            .map(AudioRecorder::snapshot_wav)
+            .transpose()
+            .map(Option::flatten)
+    }
+
     /// True if this processing session was cancelled or superseded.
     fn session_aborted(&self, session_epoch: u64) -> bool {
         self.lock_inner()
@@ -135,6 +195,7 @@ impl Pipeline {
         if let Ok(mut inner) = self.lock_inner() {
             inner.phase = Phase::Idle;
             inner.recorder = None;
+            inner.selected_text = None;
         }
     }
 
@@ -178,11 +239,29 @@ impl Pipeline {
             .last_wav()?
             .ok_or_else(|| OtoError::Message("No audio yet — dictate first".into()))?;
         let cfg = load_config()?;
-        let client = client_from_config_async(&cfg).await?;
-        client.transcribe(&wav, cfg.language.as_deref()).await
+        transcribe_from_config(&cfg, &wav).await
     }
 
     pub async fn ptt_down(&self) -> OtoResult<()> {
+        self.start_listening(SessionMode::Dictation, None).await
+    }
+
+    /// Start Command Mode after capturing the selected text in the focused app.
+    /// Settings uses a short delay so the user can restore focus; tray uses zero.
+    pub async fn command_down(&self, focus_delay_ms: u64) -> OtoResult<()> {
+        if focus_delay_ms > 0 {
+            sleep(Duration::from_millis(focus_delay_ms.min(5000))).await;
+        }
+        let selected = capture_selected_text().await?;
+        self.start_listening(SessionMode::Command, Some(selected))
+            .await
+    }
+
+    async fn start_listening(
+        &self,
+        mode: SessionMode,
+        selected_text: Option<String>,
+    ) -> OtoResult<()> {
         {
             let mut inner = self.lock_inner()?;
             // Only start a new listen from Idle — reject if already Listening or Processing.
@@ -193,11 +272,16 @@ impl Pipeline {
             inner.epoch = inner.epoch.wrapping_add(1);
             inner.cancel_flag = false;
             inner.phase = Phase::Listening;
+            inner.mode = mode;
+            inner.selected_text = selected_text;
         }
 
         // Set the visible state at the press boundary. The overlay is prewarmed,
         // so emitting before show prevents a stale Processing frame on map.
-        self.emit_state(PipelineState::Listening);
+        self.emit(PipelineEvent::state(
+            PipelineState::Listening,
+            (mode == SessionMode::Command).then(|| "Command mode".into()),
+        ));
         self.show_overlay();
 
         // A first-run webview may still attach its listener after show. Retry only
@@ -214,7 +298,10 @@ impl Pipeline {
                 if still_listening {
                     let _ = app.emit(
                         "pipeline://event",
-                        PipelineEvent::state(PipelineState::Listening, None),
+                        PipelineEvent::state(
+                            PipelineState::Listening,
+                            (mode == SessionMode::Command).then(|| "Command mode".into()),
+                        ),
                     );
                 }
             });
@@ -228,6 +315,9 @@ impl Pipeline {
                     return Ok(());
                 }
                 inner.recorder = Some(recorder);
+                let session_epoch = inner.epoch;
+                drop(inner);
+                self.spawn_partial_loop(session_epoch);
                 Ok(())
             }
             Err(e) => {
@@ -238,8 +328,58 @@ impl Pipeline {
         }
     }
 
+    fn spawn_partial_loop(&self, session_epoch: u64) {
+        let Ok(config) = load_config() else {
+            return;
+        };
+        if !config.streaming_enabled || config.stt_backend != SttBackend::LocalWhisper {
+            return;
+        }
+        let app = self.app.clone();
+        tauri::async_runtime::spawn(async move {
+            let mut previous = String::new();
+            loop {
+                sleep(Duration::from_millis(1800)).await;
+                let Some(pipeline) = app
+                    .try_state::<AppState>()
+                    .map(|state| state.pipeline.clone())
+                else {
+                    break;
+                };
+                let wav = match pipeline.listening_snapshot(session_epoch) {
+                    Ok(Some(wav)) => wav,
+                    Ok(None) => break,
+                    Err(error) => {
+                        eprintln!("oto: live preview snapshot failed: {error}");
+                        break;
+                    }
+                };
+                match transcribe_from_config(&config, &wav).await {
+                    Ok(text) if !text.trim().is_empty() && text != previous => {
+                        if pipeline
+                            .listening_snapshot(session_epoch)
+                            .ok()
+                            .flatten()
+                            .is_none()
+                        {
+                            break;
+                        }
+                        previous = text.clone();
+                        let _ = app.emit("pipeline://event", PipelineEvent::Partial { text });
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        // Preview failure must never abort the actual dictation.
+                        eprintln!("oto: live local preview failed: {error}");
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
     pub async fn ptt_up(&self) -> OtoResult<()> {
-        let (recorder, session_epoch) = {
+        let (recorder, session_epoch, mode, selected_text) = {
             let mut inner = self.lock_inner()?;
             if inner.phase != Phase::Listening {
                 return Ok(());
@@ -247,7 +387,12 @@ impl Pipeline {
             // Capture epoch for this session; further work aborts if cancel bumps it.
             let session_epoch = inner.epoch;
             inner.phase = Phase::Processing;
-            (inner.recorder.take(), session_epoch)
+            (
+                inner.recorder.take(),
+                session_epoch,
+                inner.mode,
+                inner.selected_text.take(),
+            )
         };
 
         // Switch the overlay as soon as the hotkey is released. Finalizing the
@@ -284,19 +429,11 @@ impl Pipeline {
             }
         };
 
-        let client = match client_from_config_async(&cfg).await {
-            Ok(c) => c,
-            Err(e) => {
-                self.finish_error(e.to_string()).await;
-                return Err(e);
-            }
-        };
-
         self.emit(PipelineEvent::Phase {
             phase: "transcribing".into(),
         });
 
-        let mut text = match client.transcribe(&wav, cfg.language.as_deref()).await {
+        let mut text = match transcribe_from_config(&cfg, &wav).await {
             Ok(t) => t,
             Err(e) => {
                 if self.session_aborted(session_epoch) {
@@ -318,14 +455,69 @@ impl Pipeline {
             return Ok(());
         }
 
-        if cfg.polish_enabled {
+        let raw_text = text.clone();
+        if cfg.streaming_enabled {
+            self.emit(PipelineEvent::Partial { text: text.clone() });
+        }
+
+        let snippet_expanded = if mode == SessionMode::Dictation {
+            if let Some(expansion) = expand_snippet(&text, &cfg.snippets).map(str::to_owned) {
+                text = expansion;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if mode == SessionMode::Command {
             self.emit(PipelineEvent::Phase {
-                phase: "polishing".into(),
+                phase: "rewriting selection".into(),
             });
+            let selected = selected_text
+                .as_deref()
+                .ok_or_else(|| OtoError::Message("Command Mode lost the selected text".into()))?;
+            let client = match client_from_config_async(&cfg).await {
+                Ok(client) => client,
+                Err(error) => {
+                    self.finish_error(error.to_string()).await;
+                    return Err(error);
+                }
+            };
             let ctx = PolishContext {
                 language: cfg.language.clone(),
                 dictionary: cfg.dictionary.clone(),
-                tone_hint: cfg.tone_hint.clone(),
+                tone_hint: cfg.active_style_prompt(),
+            };
+            text = match client.rewrite(selected, &text, &ctx).await {
+                Ok(rewritten) => rewritten,
+                Err(error) => {
+                    self.finish_error(error.to_string()).await;
+                    return Err(error);
+                }
+            };
+        } else if cfg.polish_enabled && !snippet_expanded {
+            self.emit(PipelineEvent::Phase {
+                phase: "polishing".into(),
+            });
+            let client = match client_from_config_async(&cfg).await {
+                Ok(client) => client,
+                Err(error) => {
+                    self.emit(PipelineEvent::state(
+                        PipelineState::Processing,
+                        Some(format!("Polish unavailable, using raw: {error}")),
+                    ));
+                    // Continue with raw transcription, matching polish-failure behavior.
+                    return self
+                        .finish_with_text(text, raw_text, mode, &cfg, session_epoch)
+                        .await;
+                }
+            };
+            let ctx = PolishContext {
+                language: cfg.language.clone(),
+                dictionary: cfg.dictionary.clone(),
+                tone_hint: cfg.active_style_prompt(),
             };
             match client.polish(&text, &ctx).await {
                 Ok(polished) => {
@@ -354,9 +546,38 @@ impl Pipeline {
             return Ok(());
         }
 
+        self.finish_with_text(text, raw_text, mode, &cfg, session_epoch)
+            .await
+    }
+
+    async fn finish_with_text(
+        &self,
+        text: String,
+        raw_text: String,
+        mode: SessionMode,
+        cfg: &AppConfig,
+        session_epoch: u64,
+    ) -> OtoResult<()> {
+        if cfg.history_enabled {
+            if let Err(error) = history::append(
+                raw_text,
+                text.clone(),
+                mode.as_str(),
+                cfg.language.clone(),
+                cfg.history_limit,
+            ) {
+                eprintln!("oto: could not save history: {error}");
+            }
+        }
+
         self.emit(PipelineEvent::Phase {
             phase: "injecting".into(),
         });
+
+        // Portal/global-shortcut release can arrive while Ctrl/Shift/Super are
+        // still physically held. Let those modifiers settle before generating
+        // typing or Ctrl+V, otherwise the target can receive Ctrl+Shift+V.
+        sleep(Duration::from_millis(220)).await;
 
         let done_detail = match inject_text(&text, &cfg.injection_mode).await {
             Ok(InjectResult::ClipboardOnly) => {
@@ -367,7 +588,7 @@ impl Pipeline {
                 // Text is on clipboard; user pastes manually.
                 "Copied — press Ctrl+V".to_string()
             }
-            Ok(InjectResult::Pasted | InjectResult::Atspi) => {
+            Ok(InjectResult::Pasted | InjectResult::Atspi | InjectResult::DirectTyped) => {
                 if self.session_aborted(session_epoch) {
                     self.set_phase_idle();
                     return Ok(());
@@ -395,10 +616,7 @@ impl Pipeline {
             return Ok(());
         }
 
-        self.emit(PipelineEvent::state(
-            PipelineState::Done,
-            Some(done_detail),
-        ));
+        self.emit(PipelineEvent::state(PipelineState::Done, Some(done_detail)));
         // Done flash ~700ms then idle.
         sleep(Duration::from_millis(700)).await;
 
@@ -421,6 +639,7 @@ impl Pipeline {
             let mut inner = self.lock_inner()?;
             inner.recorder = None;
             inner.phase = Phase::Idle;
+            inner.selected_text = None;
             inner.cancel_flag = true;
             // Invalidate pending error auto-dismiss and in-flight processing.
             inner.epoch = inner.epoch.wrapping_add(1);

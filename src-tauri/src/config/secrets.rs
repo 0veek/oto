@@ -7,6 +7,18 @@ fn entry_for(preset: &str) -> OtoResult<Entry> {
     Entry::new(SERVICE, preset).map_err(|e| OtoError::Keyring(e.to_string()))
 }
 
+pub fn validate_account(account: &str) -> OtoResult<()> {
+    if account.is_empty()
+        || account.len() > 128
+        || !account.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, ':' | '-' | '_')
+        })
+    {
+        return Err(OtoError::Message("invalid keyring account".into()));
+    }
+    Ok(())
+}
+
 pub fn set_api_key(preset: &str, key: &str) -> OtoResult<()> {
     if key.trim().is_empty() {
         return delete_api_key(preset);

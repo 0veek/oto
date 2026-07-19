@@ -42,8 +42,10 @@
     <div class="space-y-2 border-t border-white/10 pt-4">
       <h3 class="text-sm font-medium text-slate-200">Privacy</h3>
       <p class="text-sm leading-relaxed text-slate-400">
-        Audio is sent to your configured STT provider. When polish is enabled, transcript text
-        is sent to your configured LLM provider. API keys stay in the OS keyring. No Oto cloud.
+        Cloud STT sends audio to your chosen provider; Local Whisper keeps transcription
+        on-device. Polish and Command Mode send text to the configured LLM. API keys stay in
+        the OS keyring. History is local, and sync only runs against the endpoint you choose.
+        Oto operates no intermediary cloud.
       </p>
     </div>
 

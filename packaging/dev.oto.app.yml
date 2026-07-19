@@ -1,0 +1,41 @@
+id: dev.oto.app
+runtime: org.gnome.Platform
+runtime-version: "49"
+sdk: org.gnome.Sdk
+command: oto
+separate-locales: false
+
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio
+  - --device=all
+  - --talk-name=org.freedesktop.portal.Desktop
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.a11y.Bus
+  - --filesystem=xdg-data/oto:ro
+
+modules:
+  - name: oto
+    buildsystem: simple
+    build-commands:
+      - ar x oto.deb
+      - tar -xf data.tar.*
+      - install -Dm755 usr/bin/oto /app/bin/oto
+      - install -Dm644 dev.oto.app.desktop /app/share/applications/dev.oto.app.desktop
+      - install -Dm644 dev.oto.app.metainfo.xml /app/share/metainfo/dev.oto.app.metainfo.xml
+      - install -Dm644 icon.png /app/share/icons/hicolor/128x128/apps/dev.oto.app.png
+    sources:
+      - type: file
+        path: ../src-tauri/target/release/bundle/deb/Oto_0.1.0_amd64.deb
+        dest-filename: oto.deb
+      - type: file
+        path: dev.oto.app.desktop
+      - type: file
+        path: dev.oto.app.metainfo.xml
+      - type: file
+        path: ../src-tauri/icons/128x128.png
+        dest-filename: icon.png
+

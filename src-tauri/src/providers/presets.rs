@@ -9,6 +9,7 @@ pub fn base_url_for(preset: &ProviderPreset) -> &'static str {
     }
 }
 
+#[allow(dead_code)]
 pub fn default_models(preset: &ProviderPreset) -> (&'static str, &'static str) {
     match preset {
         ProviderPreset::OpenAi => ("whisper-1", "gpt-4o-mini"),
@@ -38,7 +39,10 @@ mod tests {
 
     #[test]
     fn openai_url() {
-        assert_eq!(base_url_for(&ProviderPreset::OpenAi), "https://api.openai.com/v1");
+        assert_eq!(
+            base_url_for(&ProviderPreset::OpenAi),
+            "https://api.openai.com/v1"
+        );
     }
 
     #[test]

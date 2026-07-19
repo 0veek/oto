@@ -4,17 +4,19 @@
   let {
     sections,
     active,
+    theme,
     onselect,
     children,
   }: {
     sections: { id: string; label: string }[];
     active: string;
+    theme: string;
     onselect: (id: string) => void;
     children: Snippet;
   } = $props();
 </script>
 
-<div class="flex h-screen bg-slate-950 text-slate-100">
+<div class="oto-settings flex h-screen bg-slate-950 text-slate-100" data-theme={theme}>
   <aside
     class="flex w-56 shrink-0 flex-col border-r border-white/10 bg-white/[0.03] p-4 backdrop-blur-xl"
   >

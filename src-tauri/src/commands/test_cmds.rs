@@ -16,15 +16,19 @@ pub async fn test_transcription(state: State<'_, AppState>) -> Result<String, Ot
 }
 
 /// Inject a fixed sample string using the configured injection mode.
-/// Focus a target app before calling (paste targets the focused window).
+/// After calling, focus a target app during the short delay below.
 #[tauri::command]
 pub async fn test_injection() -> Result<String, OtoError> {
     let cfg = load_config()?;
     let sample = "Oto injection test";
+    // Clicking the settings button focuses Oto. Give the user a moment to
+    // return focus to the target app before simulating Ctrl+V.
+    sleep(Duration::from_millis(1200)).await;
     let result = inject_text(sample, &cfg.injection_mode).await?;
     let tooling = paste_tooling_summary();
     let msg = match result {
         InjectResult::Atspi => format!("Injected via AT-SPI ({tooling})"),
+        InjectResult::DirectTyped => format!("Typed through a virtual keyboard ({tooling})"),
         InjectResult::Pasted => format!("Pasted via clipboard + simulation ({tooling})"),
         InjectResult::ClipboardOnly => {
             format!("Copied — press Ctrl+V ({tooling})")

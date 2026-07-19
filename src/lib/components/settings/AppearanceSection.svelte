@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import type { AppConfig, IdleBehavior } from "$lib/types";
+  import type { AppConfig, IdleBehavior, ThemePreset } from "$lib/types";
 
   let {
     config = $bindable(),
@@ -27,6 +27,13 @@
       label: "Minimal dormant pill",
       hint: "Keep a small dormant pill visible when idle so you can find Oto.",
     },
+  ];
+
+  const THEMES: { value: ThemePreset; label: string }[] = [
+    { value: "system", label: "System" },
+    { value: "midnight", label: "Midnight" },
+    { value: "light", label: "Light" },
+    { value: "high_contrast", label: "High contrast" },
   ];
 
   async function previewListening() {
@@ -67,6 +74,24 @@
   <div
     class="space-y-5 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl backdrop-blur-xl"
   >
+    <div class="grid gap-4 sm:grid-cols-2">
+      <label class="block space-y-1.5">
+        <span class="text-sm font-medium text-slate-300">Theme</span>
+        <select class="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-white" bind:value={config.theme}>
+          {#each THEMES as theme}<option value={theme.value}>{theme.label}</option>{/each}
+        </select>
+      </label>
+      <label class="block space-y-1.5">
+        <span class="text-sm font-medium text-slate-300">Text size · {Math.round(config.font_scale * 100)}%</span>
+        <input class="w-full accent-sky-400" type="range" min="0.85" max="1.25" step="0.05" bind:value={config.font_scale} />
+      </label>
+    </div>
+
+    <label class="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-slate-900/40 px-4 py-3">
+      <span><span class="block text-sm font-medium text-slate-200">Reduce motion</span><span class="block text-xs text-slate-500">Disable non-essential pulses and transitions.</span></span>
+      <input type="checkbox" bind:checked={config.reduce_motion} />
+    </label>
+
     <fieldset class="space-y-3">
       <legend class="text-sm font-medium text-slate-300">When idle</legend>
       {#each IDLE_OPTIONS as opt (opt.value)}

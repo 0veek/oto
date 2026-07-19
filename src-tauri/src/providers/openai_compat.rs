@@ -4,7 +4,7 @@ use crate::config::{secrets, AppConfig};
 use crate::error::{OtoError, OtoResult};
 
 use super::presets;
-use super::traits::{PolishContext, SpeechToText, TextPolisher};
+use super::traits::{PolishContext, SpeechToText, TextPolisher, TranscriptionContext};
 
 pub struct OpenAiCompatClient {
     pub base_url: String,
@@ -35,26 +35,47 @@ impl OpenAiCompatClient {
 }
 
 pub fn client_from_config(cfg: &AppConfig) -> OtoResult<OpenAiCompatClient> {
-    let account = presets::preset_account(&cfg.provider_preset);
-    let key = secrets::get_api_key(account)?
-        .ok_or_else(|| OtoError::Message("API key not set".into()))?;
-    let base = if cfg.base_url.trim().is_empty() {
+    let profile = if cfg.provider_preset == crate::config::ProviderPreset::Custom {
+        cfg.active_custom_provider_id
+            .as_deref()
+            .and_then(|id| cfg.custom_providers.iter().find(|profile| profile.id == id))
+    } else {
+        None
+    };
+    let account = profile
+        .map(|profile| format!("custom:{}", profile.id))
+        .unwrap_or_else(|| presets::preset_account(&cfg.provider_preset).to_string());
+    let configured_base = profile
+        .map(|profile| profile.base_url.as_str())
+        .unwrap_or(&cfg.base_url);
+    let base = if configured_base.trim().is_empty() {
         presets::base_url_for(&cfg.provider_preset).to_string()
     } else {
-        cfg.base_url.clone()
+        configured_base.to_string()
+    };
+    let key = match secrets::get_api_key(&account)? {
+        Some(key) => key,
+        None if base.starts_with("http://127.0.0.1") || base.starts_with("http://localhost") => {
+            String::new()
+        }
+        None => return Err(OtoError::Message("API key not set".into())),
     };
     Ok(OpenAiCompatClient::new(
         base,
         key,
-        cfg.stt_model.clone(),
-        cfg.polish_model.clone(),
+        profile
+            .map(|profile| profile.stt_model.clone())
+            .unwrap_or_else(|| cfg.stt_model.clone()),
+        profile
+            .map(|profile| profile.polish_model.clone())
+            .unwrap_or_else(|| cfg.polish_model.clone()),
         cfg.temperature,
     ))
 }
 
 #[async_trait]
 impl SpeechToText for OpenAiCompatClient {
-    async fn transcribe(&self, audio_wav: &[u8], language: Option<&str>) -> OtoResult<String> {
+    async fn transcribe(&self, audio_wav: &[u8], ctx: &TranscriptionContext) -> OtoResult<String> {
         let url = format!(
             "{}/audio/transcriptions",
             self.base_url.trim_end_matches('/')
@@ -67,8 +88,11 @@ impl SpeechToText for OpenAiCompatClient {
             .part("file", part)
             .text("model", self.stt_model.clone())
             .text("response_format", "json".to_string());
-        if let Some(lang) = language {
+        if let Some(lang) = ctx.language.as_deref() {
             form = form.text("language", lang.to_string());
+        }
+        if let Some(prompt) = ctx.vocabulary_prompt.as_deref() {
+            form = form.text("prompt", prompt.to_string());
         }
         let res = self
             .client
@@ -105,6 +129,15 @@ pub fn build_polish_system_prompt(ctx: &PolishContext) -> String {
         p.push_str(ctx.tone_hint.trim());
         p.push('.');
     }
+    if let Some(language) = ctx
+        .language
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        p.push_str(" Write in language: ");
+        p.push_str(language);
+        p.push('.');
+    }
     p
 }
 
@@ -135,6 +168,50 @@ impl TextPolisher for OpenAiCompatClient {
             .trim()
             .to_string();
         Ok(text)
+    }
+
+    async fn rewrite(
+        &self,
+        selected: &str,
+        instruction: &str,
+        ctx: &PolishContext,
+    ) -> OtoResult<String> {
+        let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
+        let mut system = String::from(
+            "Edit the selected text by following the spoken instruction. Preserve facts and formatting unless the instruction asks you to change them. Return only the replacement text, with no explanation.",
+        );
+        if !ctx.dictionary.is_empty() {
+            system.push_str(" Prefer these spellings when relevant: ");
+            system.push_str(&ctx.dictionary.join(", "));
+            system.push('.');
+        }
+        if !ctx.tone_hint.trim().is_empty() {
+            system.push_str(" Style guidance: ");
+            system.push_str(ctx.tone_hint.trim());
+            system.push('.');
+        }
+        let body = serde_json::json!({
+            "model": self.polish_model,
+            "temperature": self.temperature,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": format!("Spoken instruction:\n{instruction}\n\nSelected text:\n{selected}")}
+            ]
+        });
+        let res = self
+            .client
+            .post(url)
+            .bearer_auth(&self.api_key)
+            .json(&body)
+            .send()
+            .await?
+            .error_for_status()?;
+        let value: serde_json::Value = res.json().await?;
+        Ok(value["choices"][0]["message"]["content"]
+            .as_str()
+            .ok_or_else(|| OtoError::Message("rewrite response missing content".into()))?
+            .trim()
+            .to_string())
     }
 }
 

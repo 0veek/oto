@@ -1,6 +1,6 @@
 <script lang="ts">
   import Waveform from "./Waveform.svelte";
-  import { pipelineState, pipelineDetail, pipelinePhase } from "../stores/pipeline";
+  import { pipelineState, pipelineDetail, pipelinePhase, partialTranscript } from "../stores/pipeline";
   import { invoke } from "@tauri-apps/api/core";
 
   async function cancel() {
@@ -24,9 +24,9 @@
 
   {#if $pipelineState === "listening"}
     <Waveform />
-    <span class="opacity-90">Listening…</span>
+    <span class="max-w-[240px] truncate opacity-90">{$partialTranscript || ($pipelineDetail ? `${$pipelineDetail} · Listening…` : "Listening…")}</span>
   {:else if $pipelineState === "processing"}
-    <span class="opacity-90">{$pipelineDetail || $pipelinePhase || "Processing…"}</span>
+    <span class="max-w-[240px] truncate opacity-90">{$partialTranscript || $pipelineDetail || $pipelinePhase || "Processing…"}</span>
   {:else if $pipelineState === "error"}
     <span class="max-w-[200px] truncate text-rose-200">{$pipelineDetail}</span>
   {:else if $pipelineState === "done"}

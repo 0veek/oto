@@ -1,5 +1,7 @@
 **Comprehensive Technical Plan: Linux Voice Dictation App (Wispr Flow–style) using Rust + Tauri**
 
+> **Implementation status — 2026-07-19:** Phase 1, Phase 2, and the Phase 3+ scope below are implemented. Phase 2 includes snippets, editable style presets, select-and-rewrite Command Mode, local `whisper-rs`, language auto-detection, STT vocabulary prompting, and optional local history. Phase 3+ includes rolling live partials for local Whisper, direct AT-SPI insertion/selection, accessibility preferences and themes, declarative compatible-provider profiles, and explicit user-controlled JSON sync. Cloud STT remains release-to-process because the configured compatible upload APIs receive the completed WAV after push-to-talk release.
+
 ### 1. Product Vision & Core Goals
 Build a native Linux desktop application that provides **system-wide, AI-powered voice dictation** with a beautiful floating overlay UI. Users press a global hotkey, speak naturally, and receive clean, polished text inserted into the currently focused text field of *any* application.
 
