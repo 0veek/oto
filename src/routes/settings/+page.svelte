@@ -5,6 +5,7 @@
   import SettingsShell from "$lib/components/settings/SettingsShell.svelte";
   import ProvidersSection from "$lib/components/settings/ProvidersSection.svelte";
   import ModelsSection from "$lib/components/settings/ModelsSection.svelte";
+  import HotkeysSection from "$lib/components/settings/HotkeysSection.svelte";
 
   const SECTIONS = [
     { id: "providers", label: "Providers" },
@@ -99,6 +100,8 @@
         <ProvidersSection bind:config />
       {:else if active === "models"}
         <ModelsSection bind:config />
+      {:else if active === "hotkeys"}
+        <HotkeysSection bind:config />
       {:else if active === "appearance"}
         <section class="space-y-4">
           <header>
@@ -142,7 +145,7 @@
         </section>
       {/if}
 
-      {#if active === "providers" || active === "models"}
+      {#if active === "providers" || active === "models" || active === "hotkeys"}
         <div class="flex items-center justify-end gap-3 pt-2">
           {#if saveStatus}
             <span

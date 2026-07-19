@@ -1,5 +1,7 @@
 use crate::config::{load_config, save_config, secrets, AppConfig, ProviderPreset};
 use crate::error::OtoError;
+use crate::hotkeys;
+use tauri::AppHandle;
 
 fn preset_account(p: &ProviderPreset) -> &'static str {
     match p {
@@ -16,7 +18,9 @@ pub fn get_config() -> Result<AppConfig, OtoError> {
 }
 
 #[tauri::command]
-pub fn set_config(cfg: AppConfig) -> Result<(), OtoError> {
+pub fn set_config(app: AppHandle, cfg: AppConfig) -> Result<(), OtoError> {
+    // Re-register before saving so invalid hotkeys are rejected without writing config.
+    hotkeys::register_ptt(&app, &cfg.hotkey)?;
     save_config(&cfg)
 }
 

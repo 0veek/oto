@@ -2,11 +2,13 @@ mod audio;
 mod commands;
 mod config;
 mod error;
+mod hotkeys;
 mod pipeline;
 mod state;
 
 use std::sync::Arc;
 
+use config::load_config;
 use pipeline::Pipeline;
 use state::AppState;
 use tauri::{
@@ -82,6 +84,7 @@ fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             commands::config_cmds::get_config,
             commands::config_cmds::set_config,
@@ -101,6 +104,21 @@ pub fn run() {
             });
 
             setup_tray(app.handle())?;
+
+            match load_config() {
+                Ok(cfg) => {
+                    if let Err(e) = hotkeys::register_ptt(app.handle(), &cfg.hotkey) {
+                        eprintln!("hotkey registration failed (tray fallback available): {e}");
+                    }
+                }
+                Err(e) => {
+                    eprintln!("could not load config for hotkey: {e}");
+                    if let Err(e) = hotkeys::register_ptt(app.handle(), "Ctrl+Super+Space") {
+                        eprintln!("default hotkey registration failed: {e}");
+                    }
+                }
+            }
+
             if let Some(settings) = app.get_webview_window("settings") {
                 let settings_for_event = settings.clone();
                 settings.on_window_event(move |event| {
