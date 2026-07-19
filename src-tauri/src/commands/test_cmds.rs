@@ -1,8 +1,11 @@
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
+use tokio::time::{sleep, Duration};
 
+use crate::audio::AudioRecorder;
 use crate::config::load_config;
 use crate::error::OtoError;
 use crate::injection::{inject_text, paste_tooling_summary, InjectResult};
+use crate::pipeline::events::{PipelineEvent, PipelineState};
 use crate::state::AppState;
 
 /// Transcribe the last PTT capture with the configured STT provider.
@@ -28,4 +31,37 @@ pub async fn test_injection() -> Result<String, OtoError> {
         }
     };
     Ok(msg)
+}
+
+/// Capture ~2s of microphone audio and stream level events (no STT).
+#[tauri::command]
+pub async fn test_microphone(app: AppHandle) -> Result<(), OtoError> {
+    let _ = app.emit(
+        "pipeline://event",
+        PipelineEvent::state(PipelineState::Listening, Some("Mic test".into())),
+    );
+
+    let recorder = match AudioRecorder::start(app.clone()) {
+        Ok(r) => r,
+        Err(e) => {
+            let _ = app.emit(
+                "pipeline://event",
+                PipelineEvent::Error {
+                    message: e.to_string(),
+                },
+            );
+            return Err(e);
+        }
+    };
+
+    sleep(Duration::from_secs(2)).await;
+
+    // Drop stream (levels already streamed during capture).
+    let _ = recorder.stop();
+
+    let _ = app.emit(
+        "pipeline://event",
+        PipelineEvent::state(PipelineState::Idle, None),
+    );
+    Ok(())
 }

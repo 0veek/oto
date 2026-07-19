@@ -93,12 +93,14 @@ pub fn run() {
             commands::config_cmds::set_api_key,
             commands::config_cmds::api_key_present,
             commands::config_cmds::api_key_hint,
+            commands::config_cmds::get_app_version,
             commands::pipeline_cmds::ptt_down,
             commands::pipeline_cmds::ptt_up,
             commands::pipeline_cmds::cancel_dictation,
             commands::pipeline_cmds::debug_preview_listening,
             commands::test_cmds::test_transcription,
             commands::test_cmds::test_injection,
+            commands::test_cmds::test_microphone,
         ])
         .setup(|app| {
             let pipeline = Arc::new(Pipeline::new(app.handle().clone()));

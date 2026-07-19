@@ -44,3 +44,9 @@ pub fn api_key_hint(preset: ProviderPreset) -> Result<Option<String>, OtoError> 
         }
     }))
 }
+
+/// Cargo package version shown in About.
+#[tauri::command]
+pub fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
