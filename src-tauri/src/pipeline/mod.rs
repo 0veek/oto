@@ -1,2 +1,4 @@
 pub mod events;
-// orchestrator added in later task
+pub mod orchestrator;
+
+pub use orchestrator::Pipeline;

@@ -5,17 +5,23 @@ mod error;
 mod pipeline;
 mod state;
 
+use std::sync::Arc;
+
+use pipeline::Pipeline;
 use state::AppState;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, Runtime,
 };
+use tokio::sync::Mutex;
 
 fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    let start = MenuItem::with_id(app, "start_listening", "Start Listening", true, None::<&str>)?;
+    let stop = MenuItem::with_id(app, "stop_listening", "Stop Listening", true, None::<&str>)?;
     let open = MenuItem::with_id(app, "open_settings", "Open Settings", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &quit])?;
+    let menu = Menu::with_items(app, &[&start, &stop, &open, &quit])?;
 
     let icon = app
         .default_window_icon()
@@ -26,6 +32,26 @@ fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
         .icon(icon)
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
+            "start_listening" => {
+                if let Some(state) = app.try_state::<AppState>() {
+                    let pipeline = state.pipeline.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = pipeline.ptt_down().await {
+                            eprintln!("ptt_down (tray): {e}");
+                        }
+                    });
+                }
+            }
+            "stop_listening" => {
+                if let Some(state) = app.try_state::<AppState>() {
+                    let pipeline = state.pipeline.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = pipeline.ptt_up().await {
+                            eprintln!("ptt_up (tray): {e}");
+                        }
+                    });
+                }
+            }
             "open_settings" => {
                 if let Some(w) = app.get_webview_window("settings") {
                     let _ = w.show();
@@ -56,17 +82,24 @@ fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             commands::config_cmds::get_config,
             commands::config_cmds::set_config,
             commands::config_cmds::set_api_key,
             commands::config_cmds::api_key_present,
             commands::config_cmds::api_key_hint,
+            commands::pipeline_cmds::ptt_down,
+            commands::pipeline_cmds::ptt_up,
             commands::pipeline_cmds::cancel_dictation,
             commands::pipeline_cmds::debug_preview_listening,
         ])
         .setup(|app| {
+            let pipeline = Arc::new(Pipeline::new(app.handle().clone()));
+            app.manage(AppState {
+                cancel_flag: Arc::new(Mutex::new(false)),
+                pipeline,
+            });
+
             setup_tray(app.handle())?;
             if let Some(settings) = app.get_webview_window("settings") {
                 let settings_for_event = settings.clone();

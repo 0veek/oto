@@ -1,10 +1,24 @@
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, State};
 
+use crate::error::OtoError;
 use crate::pipeline::events::{PipelineEvent, PipelineState};
+use crate::state::AppState;
 
 #[tauri::command]
-pub async fn cancel_dictation() -> Result<(), String> {
-    Ok(())
+pub async fn ptt_down(state: State<'_, AppState>) -> Result<(), OtoError> {
+    *state.cancel_flag.lock().await = false;
+    state.pipeline.ptt_down().await
+}
+
+#[tauri::command]
+pub async fn ptt_up(state: State<'_, AppState>) -> Result<(), OtoError> {
+    state.pipeline.ptt_up().await
+}
+
+#[tauri::command]
+pub async fn cancel_dictation(state: State<'_, AppState>) -> Result<(), OtoError> {
+    *state.cancel_flag.lock().await = true;
+    state.pipeline.cancel().await
 }
 
 #[tauri::command]
