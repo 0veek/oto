@@ -12,9 +12,31 @@
   "app": {
     "windows": [
       {
+        "label": "overlay",
         "title": "Oto",
-        "width": 800,
-        "height": 600
+        "url": "/",
+        "width": 320,
+        "height": 72,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": false,
+        "focus": false
+      },
+      {
+        "label": "settings",
+        "title": "Oto Settings",
+        "url": "/settings",
+        "width": 880,
+        "height": 640,
+        "resizable": true,
+        "decorations": true,
+        "transparent": false,
+        "visible": false,
+        "center": true
       }
     ],
     "security": {
