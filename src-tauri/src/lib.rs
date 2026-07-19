@@ -4,6 +4,7 @@ mod config;
 mod error;
 mod hotkeys;
 mod pipeline;
+mod providers;
 mod state;
 
 use std::sync::Arc;
