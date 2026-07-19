@@ -75,3 +75,4 @@ graphify-out/
 /.flatpak-build/
 /.flatpak-repo/
 /*.flatpak
+oto-details.md
