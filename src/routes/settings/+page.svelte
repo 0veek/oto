@@ -6,6 +6,7 @@
   import ProvidersSection from "$lib/components/settings/ProvidersSection.svelte";
   import ModelsSection from "$lib/components/settings/ModelsSection.svelte";
   import HotkeysSection from "$lib/components/settings/HotkeysSection.svelte";
+  import InjectionSection from "$lib/components/settings/InjectionSection.svelte";
 
   const SECTIONS = [
     { id: "providers", label: "Providers" },
@@ -102,6 +103,8 @@
         <ModelsSection bind:config />
       {:else if active === "hotkeys"}
         <HotkeysSection bind:config />
+      {:else if active === "injection"}
+        <InjectionSection bind:config />
       {:else if active === "appearance"}
         <section class="space-y-4">
           <header>
@@ -145,7 +148,7 @@
         </section>
       {/if}
 
-      {#if active === "providers" || active === "models" || active === "hotkeys"}
+      {#if active === "providers" || active === "models" || active === "hotkeys" || active === "injection"}
         <div class="flex items-center justify-end gap-3 pt-2">
           {#if saveStatus}
             <span

@@ -3,6 +3,7 @@ mod commands;
 mod config;
 mod error;
 mod hotkeys;
+mod injection;
 mod pipeline;
 mod providers;
 mod state;
@@ -97,6 +98,7 @@ pub fn run() {
             commands::pipeline_cmds::cancel_dictation,
             commands::pipeline_cmds::debug_preview_listening,
             commands::test_cmds::test_transcription,
+            commands::test_cmds::test_injection,
         ])
         .setup(|app| {
             let pipeline = Arc::new(Pipeline::new(app.handle().clone()));

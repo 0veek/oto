@@ -1,4 +1,4 @@
-//! PTT lifecycle: record → STT → optional polish → events.
+//! PTT lifecycle: record → STT → optional polish → inject → events.
 
 use std::sync::Mutex;
 
@@ -8,6 +8,7 @@ use tokio::time::{sleep, Duration};
 use crate::audio::AudioRecorder;
 use crate::config::load_config;
 use crate::error::{OtoError, OtoResult};
+use crate::injection::{inject_text, InjectResult};
 use crate::pipeline::events::{PipelineEvent, PipelineState};
 use crate::providers::{
     client_from_config, PolishContext, SpeechToText, TextPolisher,
@@ -219,10 +220,37 @@ impl Pipeline {
             }
         }
 
-        // Until injection (Task 13): surface text via Done detail so UI can show it.
+        self.emit(PipelineEvent::Phase {
+            phase: "injecting".into(),
+        });
+
+        let done_detail = match inject_text(&text, &cfg.injection_mode).await {
+            Ok(InjectResult::ClipboardOnly) => {
+                // Text is on clipboard; user pastes manually.
+                "Copied — press Ctrl+V".to_string()
+            }
+            Ok(InjectResult::Pasted | InjectResult::Atspi) => {
+                // Surface the injected text (truncate long transcripts for overlay).
+                if text.chars().count() > 120 {
+                    let short: String = text.chars().take(117).collect();
+                    format!("{short}…")
+                } else {
+                    text
+                }
+            }
+            Err(e) => {
+                self.emit(PipelineEvent::Error {
+                    message: format!("Injection failed: {e}"),
+                });
+                self.emit_state(PipelineState::Idle);
+                self.hide_overlay();
+                return Err(e);
+            }
+        };
+
         self.emit(PipelineEvent::state(
             PipelineState::Done,
-            Some(text),
+            Some(done_detail),
         ));
         sleep(Duration::from_millis(700)).await;
 
