@@ -165,6 +165,8 @@ pub fn run() {
             // restore position, persist user drags, optional minimal idle.
             if let Some(overlay) = app.get_webview_window("overlay") {
                 position_overlay(&overlay);
+                // Overlay is visual-only; if it accepts focus, ydotool/wtype type into it.
+                let _ = overlay.set_focusable(false);
 
                 // Warm the webview so the first PTT does not race a cold load.
                 let _ = overlay.show();

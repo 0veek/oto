@@ -9,7 +9,9 @@ use crate::audio::AudioRecorder;
 use crate::config::{load_config, AppConfig, IdleBehavior, SttBackend};
 use crate::error::{OtoError, OtoResult};
 use crate::features::{history, snippets::expand_snippet};
-use crate::injection::{capture_selected_text, inject_text, InjectResult};
+use crate::injection::{
+    capture_focus_target, capture_selected_text, inject_text_to, FocusTarget, InjectResult,
+};
 use crate::pipeline::events::{PipelineEvent, PipelineState};
 use crate::providers::{
     client_from_config, LocalWhisperClient, OpenAiCompatClient, PolishContext, SpeechToText,
@@ -88,6 +90,8 @@ struct Inner {
     last_wav: Option<Vec<u8>>,
     mode: SessionMode,
     selected_text: Option<String>,
+    /// Window that should receive injected text (captured at PTT press).
+    focus_target: Option<FocusTarget>,
 }
 
 pub struct Pipeline {
@@ -107,6 +111,7 @@ impl Pipeline {
                 last_wav: None,
                 mode: SessionMode::Dictation,
                 selected_text: None,
+                focus_target: None,
             }),
         }
     }
@@ -125,6 +130,8 @@ impl Pipeline {
             position_overlay(&w);
             let _ = w.set_always_on_top(true);
             let _ = w.set_skip_taskbar(true);
+            // Never accept keyboard focus — synthetic typing must hit the dictation target.
+            let _ = w.set_focusable(false);
             // Do not steal keyboard focus from the app the user is dictating into.
             if let Err(e) = w.show() {
                 eprintln!("oto: overlay.show failed: {e}");
@@ -262,6 +269,13 @@ impl Pipeline {
         mode: SessionMode,
         selected_text: Option<String>,
     ) -> OtoResult<()> {
+        // Capture focus *before* showing the overlay so injection can restore it
+        // after multi-second STT, even if Settings/overlay steals keyboard focus.
+        let focus_target = capture_focus_target();
+        eprintln!(
+            "oto focus: captured class={:?} address={:?}",
+            focus_target.class, focus_target.hyprland_address
+        );
         {
             let mut inner = self.lock_inner()?;
             // Only start a new listen from Idle — reject if already Listening or Processing.
@@ -274,6 +288,7 @@ impl Pipeline {
             inner.phase = Phase::Listening;
             inner.mode = mode;
             inner.selected_text = selected_text;
+            inner.focus_target = Some(focus_target);
         }
 
         // Set the visible state at the press boundary. The overlay is prewarmed,
@@ -584,11 +599,22 @@ impl Pipeline {
         });
 
         // Portal/global-shortcut release can arrive while Ctrl/Shift/Super are
-        // still physically held. Let those modifiers settle before generating
-        // typing or Ctrl+V, otherwise the target can receive Ctrl+Shift+V.
-        sleep(Duration::from_millis(220)).await;
+        // still physically held. Wait long enough for the chord to settle, then
+        // inject_text also synthesizes explicit key-up events before typing.
+        sleep(Duration::from_millis(400)).await;
 
-        let done_detail = match inject_text(&text, &cfg.injection_mode).await {
+        let focus_target = {
+            let mut inner = self.lock_inner()?;
+            inner.focus_target.take()
+        };
+
+        let done_detail = match inject_text_to(
+            &text,
+            &cfg.injection_mode,
+            focus_target.as_ref(),
+        )
+        .await
+        {
             Ok(InjectResult::ClipboardOnly) => {
                 if self.session_aborted(session_epoch) {
                     self.set_phase_idle();
@@ -649,6 +675,7 @@ impl Pipeline {
             inner.recorder = None;
             inner.phase = Phase::Idle;
             inner.selected_text = None;
+            inner.focus_target = None;
             inner.cancel_flag = true;
             // Invalidate pending error auto-dismiss and in-flight processing.
             inner.epoch = inner.epoch.wrapping_add(1);

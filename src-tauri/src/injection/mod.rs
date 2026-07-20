@@ -2,9 +2,13 @@
 
 mod atspi_inject;
 mod clipboard;
+mod focus;
 mod paste;
 
 pub use clipboard::{get_clipboard_text, set_clipboard_text};
+pub use focus::{
+    active_focus_summary, capture_focus_target, restore_focus_target, FocusTarget,
+};
 pub use paste::{
     detect_session, simulate_copy, simulate_paste, simulate_type, tool_exists, SessionKind,
 };
@@ -33,12 +37,52 @@ pub enum InjectResult {
 /// - **ClipboardPaste:** set clipboard then simulate paste (errors if paste fails)
 /// - **ClipboardOnly:** set clipboard only
 pub async fn inject_text(text: &str, mode: &InjectionMode) -> OtoResult<InjectResult> {
-    match mode {
+    inject_text_to(text, mode, None).await
+}
+
+fn append_inject_log(message: &str) {
+    use std::io::Write;
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/oto-inject.log")
+    {
+        let _ = writeln!(file, "{message}");
+    }
+    eprintln!("oto injection: {message}");
+}
+
+/// Inject `text`, optionally restoring a previously captured focus target first.
+pub async fn inject_text_to(
+    text: &str,
+    mode: &InjectionMode,
+    focus: Option<&FocusTarget>,
+) -> OtoResult<InjectResult> {
+    append_inject_log(&format!(
+        "inject_text mode={mode:?} chars={} focus_before={}",
+        text.chars().count(),
+        active_focus_summary()
+    ));
+    if let Some(target) = focus {
+        let restored = restore_focus_target(target);
+        append_inject_log(&format!(
+            "restore_focus ok={restored} target_class={:?} address={:?}",
+            target.class, target.hyprland_address
+        ));
+        if restored {
+            // Give the compositor a beat to apply focus before key events.
+            tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+        }
+    }
+    append_inject_log(&format!("focus_at_type={}", active_focus_summary()));
+    let result = match mode {
         InjectionMode::ClipboardOnly => {
             set_clipboard_text(text)?;
             Ok(InjectResult::ClipboardOnly)
         }
         InjectionMode::DirectType => {
+            // Keep a clipboard backup so the user can Ctrl+V if focus was wrong.
+            let _ = set_clipboard_text(text);
             simulate_type(text)?;
             Ok(InjectResult::DirectTyped)
         }
@@ -64,7 +108,12 @@ pub async fn inject_text(text: &str, mode: &InjectionMode) -> OtoResult<InjectRe
                 }
             }
         }
+    };
+    match &result {
+        Ok(kind) => append_inject_log(&format!("result={kind:?}")),
+        Err(error) => append_inject_log(&format!("error={error}")),
     }
+    result
 }
 
 /// Copy the focused application's selection for Command Mode. A sentinel makes

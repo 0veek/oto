@@ -4,7 +4,9 @@ use tokio::time::{sleep, Duration};
 use crate::audio::AudioRecorder;
 use crate::config::{load_config, IdleBehavior};
 use crate::error::OtoError;
-use crate::injection::{inject_text, paste_tooling_summary, InjectResult};
+use crate::injection::{
+    capture_focus_target, inject_text_to, paste_tooling_summary, InjectResult,
+};
 use crate::pipeline::events::{PipelineEvent, PipelineState};
 use crate::pipeline::orchestrator::position_overlay;
 use crate::state::AppState;
@@ -46,13 +48,23 @@ pub async fn test_injection() -> Result<String, OtoError> {
     let sample = "Oto injection test";
     // Clicking the settings button focuses Oto. Give the user a moment to
     // return focus to the target app before simulating Ctrl+V.
-    sleep(Duration::from_millis(1200)).await;
-    let result = inject_text(sample, &cfg.injection_mode).await?;
+    sleep(Duration::from_millis(1500)).await;
+    // Capture whichever app the user focused during the delay — not Oto Settings.
+    let focus = capture_focus_target();
+    let result = inject_text_to(sample, &cfg.injection_mode, Some(&focus)).await?;
     let tooling = paste_tooling_summary();
+    let target = focus
+        .class
+        .clone()
+        .unwrap_or_else(|| "unknown-window".into());
     let msg = match result {
-        InjectResult::Atspi => format!("Injected via AT-SPI ({tooling})"),
-        InjectResult::DirectTyped => format!("Typed through a virtual keyboard ({tooling})"),
-        InjectResult::Pasted => format!("Pasted via clipboard + simulation ({tooling})"),
+        InjectResult::Atspi => format!("Injected via AT-SPI into {target} ({tooling})"),
+        InjectResult::DirectTyped => {
+            format!("Typed through a virtual keyboard into {target} ({tooling})")
+        }
+        InjectResult::Pasted => {
+            format!("Pasted via clipboard + simulation into {target} ({tooling})")
+        }
         InjectResult::ClipboardOnly => {
             format!("Copied — press Ctrl+V ({tooling})")
         }
