@@ -15,6 +15,9 @@
   let posTimer: ReturnType<typeof setTimeout> | null = null;
 
   onMount(() => {
+    document.documentElement.dataset.surface = "overlay";
+    document.body.dataset.surface = "overlay";
+
     void invoke<AppConfig>("get_config")
       .then((config) => applyTheme(config.theme, config.reduce_motion, config.font_scale))
       .catch(() => {});
@@ -43,6 +46,8 @@
     })();
 
     return () => {
+      delete document.documentElement.dataset.surface;
+      delete document.body.dataset.surface;
       unlistenPromise.then((u) => u());
       unlistenMoved?.();
       if (posTimer) clearTimeout(posTimer);
@@ -50,6 +55,6 @@
   });
 </script>
 
-<div class="flex h-screen w-screen items-center justify-center bg-transparent">
+<div class="overlay-host">
   <FloatingPill />
 </div>

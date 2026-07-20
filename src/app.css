@@ -33,6 +33,22 @@ body,
   min-height: 100dvh;
 }
 
+html[data-surface="overlay"],
+body[data-surface="overlay"],
+body[data-surface="overlay"] #app {
+  overflow: hidden;
+  background: transparent !important;
+}
+
+.overlay-host {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  place-items: center;
+  overflow: hidden;
+  background: transparent;
+}
+
 button,
 input,
 select,

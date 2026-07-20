@@ -1,50 +1,87 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { audioLevel } from "../stores/pipeline";
+  import { audioLevel } from "$lib/stores/pipeline";
 
+  let { level }: { level?: number } = $props();
   let canvas: HTMLCanvasElement;
-  let levels: number[] = [];
-  const bars = 24;
+  let levels: number[] = [0.22, 0.58, 0.88, 0.46, 0.78, 0.62, 0.3];
+  const bars = 7;
 
   onMount(() => {
-    const unsub = audioLevel.subscribe((l) => {
-      levels = [...levels, l].slice(-bars);
-      draw();
+    let previewFrame = 0;
+    let animationFrame = 0;
+    const unsubscribe = audioLevel.subscribe((value) => {
+      if (level === undefined) addLevel(value);
     });
-    const ro = new ResizeObserver(() => draw());
-    ro.observe(canvas);
+    const resizeObserver = new ResizeObserver(draw);
+    resizeObserver.observe(canvas);
+
+    if (level !== undefined) {
+      const animatePreview = () => {
+        previewFrame += 1;
+        if (previewFrame % 8 === 0) {
+          const movement = Math.sin(previewFrame / 12) * 0.14;
+          addLevel(Math.max(0.12, Math.min(1, level + movement)));
+        }
+        animationFrame = requestAnimationFrame(animatePreview);
+      };
+      animationFrame = requestAnimationFrame(animatePreview);
+    }
+
+    draw();
     return () => {
-      unsub();
-      ro.disconnect();
+      unsubscribe();
+      resizeObserver.disconnect();
+      if (animationFrame) cancelAnimationFrame(animationFrame);
     };
   });
 
+  function addLevel(value: number) {
+    levels = [...levels, Math.max(0.06, Math.min(1, value))].slice(-bars);
+    draw();
+  }
+
   function draw() {
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
     const dpr = window.devicePixelRatio || 1;
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    const gap = 2;
-    const bw = (w - gap * (bars - 1)) / bars;
-    // Right-align samples so the newest level is always at the trailing edge.
-    const pad = Math.max(0, bars - levels.length);
-    for (let i = 0; i < bars; i++) {
-      const v = i < pad ? 0.05 : (levels[i - pad] ?? 0.05);
-      const bh = Math.max(3, v * h * 0.9);
-      const x = i * (bw + gap);
-      const y = (h - bh) / 2;
-      ctx.fillStyle = `rgba(165, 180, 252, ${0.35 + v * 0.65})`;
-      ctx.beginPath();
-      ctx.roundRect(x, y, bw, bh, 2);
-      ctx.fill();
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const styles = getComputedStyle(canvas);
+    const active = styles.getPropertyValue("--color-overlay-accent").trim();
+    const quiet = styles.getPropertyValue("--color-overlay-wave-quiet").trim();
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    context.clearRect(0, 0, width, height);
+
+    const gap = 4;
+    const barWidth = (width - gap * (bars - 1)) / bars;
+    for (let index = 0; index < bars; index += 1) {
+      const value = levels[index] ?? 0.08;
+      const barHeight = Math.max(4, value * height * 0.92);
+      const x = index * (barWidth + gap);
+      const y = (height - barHeight) / 2;
+      context.fillStyle = value > 0.18 ? active : quiet;
+      context.globalAlpha = 0.55 + value * 0.45;
+      context.beginPath();
+      context.roundRect(x, y, barWidth, barHeight, barWidth / 2);
+      context.fill();
     }
+    context.globalAlpha = 1;
   }
 </script>
 
-<canvas bind:this={canvas} class="h-6 w-28"></canvas>
+<canvas bind:this={canvas} class="oto-waveform" aria-hidden="true"></canvas>
+
+<style>
+  .oto-waveform {
+    display: block;
+    width: 4.75rem;
+    height: 2rem;
+    flex: 0 0 4.75rem;
+  }
+</style>

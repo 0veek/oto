@@ -25,6 +25,29 @@
   --color-success: oklch(75% 0.13 158);
   --color-error: oklch(70% 0.17 25);
 
+  /* Overlay stays dark and legible against arbitrary desktop wallpaper. */
+  --color-overlay-surface: oklch(17% 0.025 236);
+  --color-overlay-surface-raised: oklch(20% 0.03 236);
+  --color-overlay-brand: oklch(17.367% 0.0602 262.6);
+  --color-overlay-action: oklch(23% 0.028 236);
+  --color-overlay-action-hover: oklch(28% 0.032 232);
+  --color-overlay-action-active: oklch(31% 0.038 227);
+  --color-overlay-ink: oklch(96% 0.008 220);
+  --color-overlay-ink-2: oklch(79% 0.014 225);
+  --color-overlay-muted: oklch(60% 0.018 230);
+  --color-overlay-rule: oklch(35% 0.028 233);
+  --color-overlay-rule-strong: oklch(43% 0.035 230);
+  --color-overlay-rule-hover: oklch(55% 0.052 222);
+  --color-overlay-accent: oklch(80% 0.15 211);
+  --color-overlay-accent-rule: oklch(68% 0.11 214 / 0.62);
+  --color-overlay-focus: oklch(82% 0.145 211 / 0.45);
+  --color-overlay-wave-quiet: oklch(53% 0.07 218);
+  --color-overlay-warm: oklch(84% 0.17 83);
+  --color-overlay-error: oklch(75% 0.16 28);
+  --color-overlay-error-rule: oklch(58% 0.12 28 / 0.72);
+  --shadow-overlay: 0 0.625rem 1.5rem oklch(4% 0.015 235 / 0.42);
+  --shadow-overlay-brand: 0 0.75rem 1.75rem oklch(4% 0.015 235 / 0.5);
+
   --font-display: "Geist Variable", "Geist", ui-sans-serif, sans-serif;
   --font-body: "Geist Variable", "Geist", ui-sans-serif, sans-serif;
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;

@@ -1,73 +1,86 @@
-# Oto Settings Design QA
+# Oto Overlay Pill Design QA
 
 ## Evidence
 
-- Source visual truth: `/home/aveek/.codex/generated_images/019f7a55-4a5f-73c3-83bb-5f4ca4491fbc/exec-5f5367a7-e3cd-47a8-837b-326637872a7d.png`
-- Browser-rendered implementation: `/tmp/oto-models-local-final.png`
-- Viewport: `1440 × 1024` CSS pixels at device scale 1
-- State: Midnight theme, Models section, Local Whisper selected, polish enabled
-- Full-view comparison: `/tmp/oto-design-comparison-final-local.png`
-- Focused forms comparison: `/tmp/oto-design-comparison-focus-local.png`
-- Responsive evidence: `/tmp/oto-models-320-final.png`, `/tmp/oto-models-375-final.png`, `/tmp/oto-models-414-final.png`, `/tmp/oto-models-768-final.png`
+- Source visual truth: `/home/aveek/.codex/generated_images/019f7a55-4a5f-73c3-83bb-5f4ca4491fbc/exec-7ce4765e-c02d-447e-8e1c-89b71dd33747.png`
+- Browser-rendered implementation: `/tmp/oto-overlay-reference-mode.png`
+- Viewport: `1448 × 1086` CSS pixels at device scale 1
+- State: Midnight theme; Listening, Processing, Inserted, and Couldn’t insert
+- Full-view side-by-side comparison: `/tmp/oto-overlay-comparison.png`
+- Focused Listening comparison: `/tmp/oto-overlay-focus-comparison.png`
+- Eight-state interaction board: `/tmp/oto-overlay-preview.png`
+- Runtime footprint: `340 × 80` CSS pixels
 
 ## Findings
 
 - No actionable P0, P1, or P2 differences remain.
-- [P3] Production information architecture differs from the concept mock.
-  - Location: contextual settings rail and Models form.
-  - Evidence: the concept uses illustrative categories and fields; the implementation retains Oto's real eleven settings sections, real configuration keys, and save behavior.
-  - Impact: exact labels differ, while the selected dual-rail hierarchy and settings-workbench composition remain intact.
-  - Classification: accepted product constraint. The desktop rail uses the concise label `Styles`; the mobile selector retains `Styles & commands`.
-- [P3] Local-processing disclosure adds one extra block.
-  - Location: Models → Local Whisper.
-  - Evidence: the production UI warns that polish can still use a remote provider; the concept does not model that privacy state.
-  - Impact: the lower form is slightly denser and scrolls sooner at laptop height.
-  - Classification: accepted safety/content requirement.
+- [P3] The leading mark uses Oto’s real shipped icon rather than redrawing the concept’s generic open-ring symbol.
+  - Location: circular brand pod.
+  - Evidence: the source uses a simplified cyan ring; the implementation uses the existing cyan waveform-ring mark with its amber timing dot.
+  - Impact: the silhouette stays faithful while brand recognition is stronger and no approximate SVG or CSS logo is introduced.
+  - Classification: accepted product-asset constraint.
+- [P3] The implementation is optically denser than the enlarged concept board.
+  - Location: label, waveform, and action spacing.
+  - Evidence: the implementation preserves the production window’s exact `340 × 80` footprint and a real 44 px action target; the concept is an enlarged visual study without runtime dimensions.
+  - Impact: typography is slightly more compact, while the connected split-pod hierarchy and state readability remain intact.
+  - Classification: accepted runtime constraint.
 
 ## Required Fidelity Surfaces
 
-- Fonts and typography: Geist Variable provides the compact product hierarchy; JetBrains Mono is limited to model IDs and technical metadata. Heading weight, line height, wrapping, and small-label contrast were checked in the combined full and focused comparisons.
-- Spacing and layout rhythm: the implementation matches the source's narrow utility rail, contextual navigation rail, four-stage pipeline, ruled two-column workbench, and fixed save shelf. Panels flatten into one divided plane from tablet widths upward and remain discrete mobile surfaces.
-- Colors and visual tokens: all settings colors consume the cyan-anchored OKLCH tokens in `tokens.css`; dark inputs, selects, and native options use a light foreground on a tinted dark surface. Accent fill uses its dedicated dark ink token.
-- Image quality and asset fidelity: the pipeline and rails use the real Oto favicon plus one consistent Tabler outline icon family. No inline SVG, emoji, CSS illustration, placeholder imagery, or redrawn application chrome is present.
-- Copy and content: labels and helper text describe Oto's actual provider, transcription, polishing, privacy, and insertion settings. No fabricated metric or testimonial was added.
-- Accessibility and behavior: semantic labels and fieldsets are retained; keyboard focus is immediate, controls have active and disabled states, reduced-motion rules cover the entry transition, mobile controls remain single-line, and the page has no horizontal overflow at tested widths.
+- Fonts and typography: Geist Variable matches the existing Oto system. Labels use a compact 15 px/600 treatment with single-line truncation for dynamic errors; hierarchy, optical weight, letter spacing, and line height were checked in the focused comparison.
+- Spacing and layout rhythm: the circle-over-pill silhouette, overlap, 64 px status rail, 72 px brand pod, 44 px action, inset state icon, capsule radii, and compact vertical rhythm match the selected direction within the exact runtime footprint.
+- Colors and visual tokens: all overlay colors, borders, focus treatment, shadows, success cyan, live amber, and insertion-error coral come from semantic OKLCH tokens in `tokens.css`. No gradients, glass effects, or hard-coded component colors are present.
+- Image quality and asset fidelity: the leading pod uses Oto’s real raster application mark. Status and action icons come from one Tabler outline family; the audio visualization is a real canvas driven by pipeline levels. No inline SVG, emoji, placeholder icon, or approximate CSS logo is used.
+- Copy and content: the visible production labels are concise and state-specific: `Listening`, `Processing`, `Inserted`, `Couldn’t insert`, and `Ready`. Actual pipeline detail remains available through the accessible label and title without crowding the live overlay.
+
+## Accessibility and Behavior
+
+- The component is a polite live status region with a full state label.
+- Cancel and dismiss actions expose descriptive accessible names and titles.
+- Keyboard focus is immediate and visible; the tested action has a 2 px focus outline and a `44 × 44` target.
+- Default, hover, focus, active, disabled, loading, error, and success states are present in the preview wrapper.
+- Motion is limited to state entry, live dots, waveform samples, processing blocks, and the busy spinner; all motion is disabled by the reduced-motion media query.
+- Long dynamic details truncate visually and remain available to assistive technology.
 
 ## Browser Checks
 
-- Primary interactions tested: section navigation, Appearance reduced-motion toggle, Cloud/Local Whisper engine switch, conditional local-model path, Providers navigation, and provider select rendering.
-- Active navigation count: one.
-- Horizontal overflow at 320, 375, 414, 768, 1280, 1440, and 1920 px: none.
-- Dropdown computed colors: foreground `oklch(0.95 0.008 220)` on background `oklch(0.13 0.018 235)` for both select and options.
-- Console errors: none.
+- Preview URL: `http://127.0.0.1:4176/overlay-preview`
+- Primary interactions tested: Cancel/Dismiss click, keyboard Tab focus, pressed state, disabled action, busy action, processing animation, success, and insertion error.
+- Action behavior: clicking the default Cancel control incremented the preview’s test-action counter from 0 to 1.
+- Rendered state count: 8 pills and 8 action controls, including 2 intentionally disabled/busy controls.
+- Console errors on the browser preview route: none.
+- Horizontal overflow at 320, 375, 544, 768, and 1200 px: none.
+- Production overlay check at `340 × 80`: root bounds exactly `0, 0, 340, 80`; action target `44 × 44`; HTML and body backgrounds transparent; no horizontal or vertical overflow.
 
 ## Comparison History
 
-1. Initial comparison: `/tmp/oto-design-comparison.png`
-   - [P2] The Models area was split into two rounded bordered cards, while the source used a flatter divided workbench.
-   - [P2] Pipeline connectors read as plain arrows rather than audio-flow markers.
-   - Fixes: removed desktop panel containers, added the central rule, and replaced connectors with Tabler waveform icons.
-2. Proportion pass: `/tmp/oto-design-comparison-final-v4.png`
-   - [P2] The first desktop rail sizing left the content canvas noticeably narrower than the source.
-   - [P2] Matching the narrower rail exposed a wrapped/clipped long navigation label.
-   - Fixes: aligned the combined desktop rail to 15rem, moved the persistent action shelf to the same inset, and shortened only the desktop navigation label to `Styles`.
-3. Final matched-state pass: `/tmp/oto-design-comparison-final-local.png` and `/tmp/oto-design-comparison-focus-local.png`
-   - No actionable P0, P1, or P2 findings. Remaining differences are the accepted production-content constraints listed above.
+1. Structure pass
+   - [P2] Listening dots initially sat after the waveform instead of beneath the label, and Inserted lacked the concept’s trailing dismiss control.
+   - Fixes: moved the amber live dots into the label stack and made the real action pod available across Listening, Processing, Inserted, and Error.
+2. Detail pass
+   - [P2] The first waveform used nine narrow samples and the processing blocks were too tall relative to the source.
+   - Fixes: reduced the waveform to seven thicker samples, normalized processing blocks to compact rounded squares, and tuned label weight and spacing.
+3. Asset pass
+   - [P2] The first mark treatment used a small nested ring that read as a separate badge.
+   - Fixes: removed the extra ring, enlarged the real Oto mark, and matched the pod surface token to the mark’s native navy field.
+4. Final matched-state pass
+   - Evidence: `/tmp/oto-overlay-comparison.png` and `/tmp/oto-overlay-focus-comparison.png`.
+   - Result: no actionable P0, P1, or P2 findings remain. The two P3 product constraints above are accepted.
 
 ## Implementation Checklist
 
-- [x] Dual-rail desktop navigation and compact mobile section selector
-- [x] Real Oto mark and consistent vector icon family
-- [x] Pipeline overview with explicit listen/transcribe/polish/insert stages
-- [x] Flat desktop model workbench with functional Cloud/Local state
-- [x] Persistent save action and keyboard shortcut
-- [x] Readable native dropdowns in all themes
-- [x] 320, 375, 414, 768, and 1440 px visual checks
-- [x] Browser interaction and console-error checks
-- [x] Svelte diagnostics and production build
+- [x] Connected playful split-pod silhouette in the production `340 × 80` window
+- [x] Live seven-sample audio waveform and amber listening cadence
+- [x] Processing, inserted, error, and dormant state treatments
+- [x] Real 44 px Cancel/Dismiss control with full interaction states
+- [x] Real Oto mark and one consistent vector icon family
+- [x] Transparent Tauri window and transparent overlay document surface
+- [x] Reduced-motion support and accessible live-state copy
+- [x] Eight-state component preview and responsive checks
+- [x] Svelte diagnostics, production build, and Rust/Tauri compile check
 
 ## Follow-up Polish
 
-- The retained privacy disclosure could later become a compact inline notice if the product adopts a dedicated disclosure component across settings.
+- If Oto later ships a transparent high-resolution brand asset, the leading mark can adopt it without changing the pod layout.
 
 final result: passed
