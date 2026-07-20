@@ -16,17 +16,17 @@
     {
       value: "auto",
       label: "Auto",
-      hint: "AT-SPI, direct ydotool/wtype typing, clipboard + paste, then clipboard only.",
+      hint: "AT-SPI, clipboard + paste (instant), direct typing fallback, then clipboard only.",
     },
     {
       value: "direct_type",
       label: "Direct type",
-      hint: "Type through ydotool, wtype, or xdotool without touching the clipboard.",
+      hint: "Type character-by-character through ydotool, wtype, or xdotool (slower on long text).",
     },
     {
       value: "clipboard_paste",
       label: "Clipboard + paste",
-      hint: "Always copy, then simulate Ctrl+V via wtype/xdotool.",
+      hint: "Always copy, then simulate Ctrl+V via wtype/ydotool/xdotool.",
     },
     {
       value: "clipboard_only",

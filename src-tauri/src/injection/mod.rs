@@ -32,7 +32,7 @@ pub enum InjectResult {
 
 /// Inject `text` according to `mode`.
 ///
-/// - **Auto:** AT-SPI → direct typing → clipboard+paste → clipboard-only fallback
+/// - **Auto:** AT-SPI → clipboard+paste → direct typing → clipboard-only fallback
 /// - **DirectType:** ydotool/wtype/xdotool virtual-keyboard typing
 /// - **ClipboardPaste:** set clipboard then simulate paste (errors if paste fails)
 /// - **ClipboardOnly:** set clipboard only
@@ -50,6 +50,12 @@ fn append_inject_log(message: &str) {
         let _ = writeln!(file, "{message}");
     }
     eprintln!("oto injection: {message}");
+}
+
+/// Write `text` to the clipboard and simulate Ctrl+V.
+fn paste_via_clipboard(text: &str) -> OtoResult<()> {
+    set_clipboard_text(text)?;
+    simulate_paste()
 }
 
 /// Inject `text`, optionally restoring a previously captured focus target first.
@@ -87,23 +93,27 @@ pub async fn inject_text_to(
             Ok(InjectResult::DirectTyped)
         }
         InjectionMode::ClipboardPaste => {
-            set_clipboard_text(text)?;
-            simulate_paste()?;
+            paste_via_clipboard(text)?;
             Ok(InjectResult::Pasted)
         }
         InjectionMode::Auto => {
+            // Prefer instant bulk insertion over character-by-character typing
+            // (ydotool type with per-key delay feels laggy on long transcripts).
             if try_atspi_insert(text).await? {
                 return Ok(InjectResult::Atspi);
             }
-            match simulate_type(text) {
-                Ok(()) => return Ok(InjectResult::DirectTyped),
-                Err(error) => eprintln!("oto injection: direct typing failed: {error}"),
-            }
-            set_clipboard_text(text)?;
-            match simulate_paste() {
-                Ok(()) => Ok(InjectResult::Pasted),
+            match paste_via_clipboard(text) {
+                Ok(()) => return Ok(InjectResult::Pasted),
                 Err(error) => {
-                    eprintln!("oto injection: simulated paste failed: {error}");
+                    append_inject_log(&format!("clipboard+paste failed: {error}"));
+                }
+            }
+            match simulate_type(text) {
+                Ok(()) => Ok(InjectResult::DirectTyped),
+                Err(error) => {
+                    append_inject_log(&format!("direct typing failed: {error}"));
+                    // Best-effort: ensure text is on the clipboard if earlier paste failed mid-way.
+                    let _ = set_clipboard_text(text);
                     Ok(InjectResult::ClipboardOnly)
                 }
             }

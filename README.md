@@ -198,12 +198,12 @@ The four modes are:
 
 | Mode | Behavior |
 | --- | --- |
-| **Auto** | Try AT-SPI, direct typing, clipboard + simulated `Ctrl+V`, then clipboard-only |
-| **Direct type** | Type through `ydotool`, `wtype`, or `xdotool` without changing the clipboard |
+| **Auto** | Try AT-SPI, clipboard + simulated `Ctrl+V` (paste whole transcript at once), direct typing, then clipboard-only |
+| **Direct type** | Type character-by-character through `ydotool`, `wtype`, or `xdotool` |
 | **Clipboard + paste** | Copy and require a supported paste simulator |
 | **Clipboard only** | Copy without generating keyboard input |
 
-Oto first searches the AT-SPI accessibility tree for the focused editable object and replaces its selection or inserts at its caret. Its Wayland direct-typing order follows the practical approach used by [Hyprvoice](https://github.com/leonardotrapani/hyprvoice): `ydotool` first, then `wtype`, with line terminators converted to spaces so generated Enter keys cannot submit a form. Oto then adds its own clipboard-and-paste fallback. On X11, direct typing uses `xdotool --clearmodifiers`.
+Oto first searches the AT-SPI accessibility tree for the focused editable object and replaces its selection or inserts at its caret. **Auto prefers clipboard + paste** so the full transcript lands in one shot instead of key-by-key typing (which is slow with `ydotool type`). If paste tools fail, it falls back to direct typing. Wayland typing order follows [Hyprvoice](https://github.com/leonardotrapani/hyprvoice): `ydotool` first, then `wtype`, with line terminators converted to spaces so generated Enter keys cannot submit a form. On X11, direct typing uses `xdotool --clearmodifiers`.
 
 On Hyprland (and other Wayland compositors), prefer a running `ydotoold` over `wtype` alone. `wtype` can exit successfully without inserting into many focused apps; `ydotool` injects via `/dev/uinput` and is more reliable. Enable the daemon once:
 

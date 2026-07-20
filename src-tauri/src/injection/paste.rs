@@ -200,7 +200,16 @@ fn paste_with_wtype() -> OtoResult<()> {
     // Give the compositor a moment to publish the new clipboard selection
     // before the focused client requests it in response to Ctrl+V.
     thread::sleep(Duration::from_millis(50));
-    run_ok(wtype_paste_command(), "wtype")
+    run_ok(wtype_paste_command(), "wtype paste")
+}
+
+fn paste_with_ydotool() -> OtoResult<()> {
+    // Same settle delay as wtype so arboard's selection is visible before Ctrl+V.
+    thread::sleep(Duration::from_millis(50));
+    // key codes: 29=LeftCtrl, 47=v (press:1 / release:0).
+    let mut command = Command::new("ydotool");
+    command.args(["key", "29:1", "47:1", "47:0", "29:0"]);
+    run_ok(command, "ydotool paste")
 }
 
 fn text_without_line_actions(text: &str) -> String {
@@ -286,30 +295,32 @@ pub fn simulate_type(text: &str) -> OtoResult<()> {
 }
 
 /// Simulate Ctrl+V (paste) using the best available tool for this session.
+/// Prefer ydotool on Wayland (same reliability rationale as typing), then wtype.
 pub fn simulate_paste() -> OtoResult<()> {
     release_modifiers();
     thread::sleep(Duration::from_millis(40));
     match detect_session() {
         SessionKind::Wayland => {
-            if tool_exists("wtype") {
-                return paste_with_wtype();
-            }
-            // ydotool: key codes 29=LeftCtrl, 47=v (press:1 / release:0).
-            // Requires ydotoold running with appropriate permissions; may fail silently
-            // on many systems — prefer wtype when available.
+            let mut failures = Vec::new();
+            // ydotool first: uinput injection is more reliable than wtype on
+            // Hyprland/Electron; mirrors simulate_type priority.
             if ydotool_ready() {
-                return run_ok(
-                    {
-                        let mut c = Command::new("ydotool");
-                        c.args(["key", "29:1", "47:1", "47:0", "29:0"]);
-                        c
-                    },
-                    "ydotool",
-                );
+                match paste_with_ydotool() {
+                    Ok(()) => return Ok(()),
+                    Err(error) => failures.push(error.to_string()),
+                }
             }
-            Err(OtoError::Message(
-                "No Wayland paste tool (install wtype or ydotool)".into(),
-            ))
+            if tool_exists("wtype") {
+                match paste_with_wtype() {
+                    Ok(()) => return Ok(()),
+                    Err(error) => failures.push(error.to_string()),
+                }
+            }
+            Err(OtoError::Message(if failures.is_empty() {
+                "No Wayland paste tool (install ydotool or wtype)".into()
+            } else {
+                format!("Wayland paste failed: {}", failures.join("; "))
+            }))
         }
         SessionKind::X11 | SessionKind::Unknown => {
             if tool_exists("xdotool") {
@@ -319,7 +330,7 @@ pub fn simulate_paste() -> OtoResult<()> {
                         c.args(["key", "ctrl+v"]);
                         c
                     },
-                    "xdotool",
+                    "xdotool paste",
                 );
             }
             // Last-resort: try wtype even outside a declared Wayland session
@@ -327,8 +338,11 @@ pub fn simulate_paste() -> OtoResult<()> {
             if tool_exists("wtype") {
                 return paste_with_wtype();
             }
+            if ydotool_ready() {
+                return paste_with_ydotool();
+            }
             Err(OtoError::Message(
-                "No paste tool found (install xdotool or wtype)".into(),
+                "No paste tool found (install xdotool, wtype, or ydotool)".into(),
             ))
         }
     }
