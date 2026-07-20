@@ -223,7 +223,7 @@
   <g font-family="DejaVu Sans, Liberation Sans, sans-serif" fill="#e8eef4">
     <text x="72" y="816" font-size="18" font-weight="700">Also built in</text>
     <g font-family="JetBrains Mono, DejaVu Sans Mono, monospace" font-size="13" fill="#9eb0c0">
-      <text x="72" y="846">Floating overlay · Themes &amp; a11y · Built-in mic / STT / insertion tests · Declarative provider profiles · MIT</text>
+      <text x="72" y="846">Floating overlay · Themes &amp; a11y · Built-in mic / STT / insertion tests · Declarative provider profiles · Apache-2.0</text>
     </g>
     <text x="1288" y="830" text-anchor="end" fill="#7dd3f0" font-size="15" font-weight="700">oto</text>
     <text x="1288" y="852" text-anchor="end" fill="#6a7d90" font-size="12"
