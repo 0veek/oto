@@ -116,7 +116,7 @@
             config.language = value.trim() === "" ? null : value.trim();
           }}
         />
-        <span class="setting-field__hint">Optional ISO code such as en or es. Leave empty for automatic detection.</span>
+        <span class="setting-field__hint">ISO code preferred (en, es). Full names like English are accepted. Leave empty for auto-detect.</span>
       </label>
 
       <label class="setting-row">

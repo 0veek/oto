@@ -30,7 +30,10 @@ async fn client_from_config_async(cfg: &crate::config::AppConfig) -> OtoResult<O
 
 fn transcription_context(cfg: &AppConfig) -> TranscriptionContext {
     TranscriptionContext {
-        language: cfg.language.clone(),
+        language: cfg
+            .language
+            .as_deref()
+            .and_then(crate::providers::openai_compat::normalize_stt_language),
         vocabulary_prompt: if cfg.vocabulary_boost && !cfg.dictionary.is_empty() {
             Some(format!(
                 "Preferred names, spellings, and domain terms: {}",

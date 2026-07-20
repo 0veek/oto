@@ -73,6 +73,83 @@ pub fn client_from_config(cfg: &AppConfig) -> OtoResult<OpenAiCompatClient> {
     ))
 }
 
+/// Map UI-friendly language names / tags to ISO-639-1 for Whisper-compatible APIs.
+/// Returns `None` for empty input; otherwise a best-effort code (pass-through if unknown).
+pub fn normalize_stt_language(language: &str) -> Option<String> {
+    let trimmed = language.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    // Already an ISO-639-1 code, optionally with region (en, en-US, en_us).
+    if let Some(base) = lower
+        .split(['-', '_'])
+        .next()
+        .filter(|b| b.len() == 2 && b.chars().all(|c| c.is_ascii_alphabetic()))
+    {
+        return Some(base.to_string());
+    }
+    let code = match lower.as_str() {
+        "english" => "en",
+        "spanish" | "español" | "espanol" => "es",
+        "french" | "français" | "francais" => "fr",
+        "german" | "deutsch" => "de",
+        "portuguese" | "português" | "portugues" => "pt",
+        "italian" | "italiano" => "it",
+        "dutch" | "nederlands" => "nl",
+        "russian" => "ru",
+        "japanese" => "ja",
+        "korean" => "ko",
+        "chinese" | "mandarin" => "zh",
+        "arabic" => "ar",
+        "hindi" => "hi",
+        "bengali" | "bangla" => "bn",
+        "turkish" => "tr",
+        "polish" => "pl",
+        "swedish" => "sv",
+        "norwegian" => "no",
+        "danish" => "da",
+        "finnish" => "fi",
+        "greek" => "el",
+        "hebrew" => "he",
+        "indonesian" => "id",
+        "vietnamese" => "vi",
+        "thai" => "th",
+        "ukrainian" => "uk",
+        "czech" => "cs",
+        "romanian" => "ro",
+        "hungarian" => "hu",
+        _ => return Some(trimmed.to_string()),
+    };
+    Some(code.to_string())
+}
+
+async fn http_error_message(res: reqwest::Response, what: &str) -> OtoError {
+    let status = res.status();
+    let body = res.text().await.unwrap_or_default();
+    let detail = serde_json::from_str::<serde_json::Value>(&body)
+        .ok()
+        .and_then(|v| {
+            v.get("error")
+                .and_then(|e| e.get("message"))
+                .and_then(|m| m.as_str())
+                .map(|s| s.to_string())
+                .or_else(|| v.get("message").and_then(|m| m.as_str()).map(|s| s.to_string()))
+        })
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            let trimmed = body.trim();
+            if trimmed.is_empty() {
+                status.to_string()
+            } else if trimmed.len() > 300 {
+                format!("{}…", &trimmed[..300])
+            } else {
+                trimmed.to_string()
+            }
+        });
+    OtoError::Message(format!("{what} failed ({status}): {detail}"))
+}
+
 #[async_trait]
 impl SpeechToText for OpenAiCompatClient {
     async fn transcribe(&self, audio_wav: &[u8], ctx: &TranscriptionContext) -> OtoResult<String> {
@@ -88,8 +165,12 @@ impl SpeechToText for OpenAiCompatClient {
             .part("file", part)
             .text("model", self.stt_model.clone())
             .text("response_format", "json".to_string());
-        if let Some(lang) = ctx.language.as_deref() {
-            form = form.text("language", lang.to_string());
+        if let Some(lang) = ctx
+            .language
+            .as_deref()
+            .and_then(normalize_stt_language)
+        {
+            form = form.text("language", lang);
         }
         if let Some(prompt) = ctx.vocabulary_prompt.as_deref() {
             form = form.text("prompt", prompt.to_string());
@@ -100,8 +181,10 @@ impl SpeechToText for OpenAiCompatClient {
             .bearer_auth(&self.api_key)
             .multipart(form)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        if !res.status().is_success() {
+            return Err(http_error_message(res, "STT").await);
+        }
         let body: serde_json::Value = res.json().await?;
         let text = body
             .get("text")
@@ -159,8 +242,10 @@ impl TextPolisher for OpenAiCompatClient {
             .bearer_auth(&self.api_key)
             .json(&body)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        if !res.status().is_success() {
+            return Err(http_error_message(res, "Polish").await);
+        }
         let v: serde_json::Value = res.json().await?;
         let text = v["choices"][0]["message"]["content"]
             .as_str()
@@ -204,8 +289,10 @@ impl TextPolisher for OpenAiCompatClient {
             .bearer_auth(&self.api_key)
             .json(&body)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        if !res.status().is_success() {
+            return Err(http_error_message(res, "Rewrite").await);
+        }
         let value: serde_json::Value = res.json().await?;
         Ok(value["choices"][0]["message"]["content"]
             .as_str()
@@ -255,5 +342,19 @@ mod tests {
         assert!(!prompt.contains("Prefer these spellings"));
         assert!(!prompt.contains("Tone/style:"));
         assert!(prompt.contains("expert editor"));
+    }
+
+    #[test]
+    fn language_names_normalize_to_iso() {
+        assert_eq!(normalize_stt_language("English").as_deref(), Some("en"));
+        assert_eq!(normalize_stt_language("en-US").as_deref(), Some("en"));
+        assert_eq!(normalize_stt_language("ES").as_deref(), Some("es"));
+        assert_eq!(normalize_stt_language("").as_deref(), None);
+        assert_eq!(normalize_stt_language("   ").as_deref(), None);
+        // Unknown tokens pass through so custom tags remain visible in API errors.
+        assert_eq!(
+            normalize_stt_language("not-a-language").as_deref(),
+            Some("not-a-language")
+        );
     }
 }
