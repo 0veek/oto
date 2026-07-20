@@ -77,16 +77,30 @@ Install the tools relevant to your session:
 | --- | --- |
 | Wayland | `xdg-desktop-portal` plus the portal backend for your compositor |
 | Hyprland | `xdg-desktop-portal-hyprland`; Oto creates a runtime `global` bind |
-| Wayland insertion | `ydotool` with its daemon and/or `wtype` |
+| Wayland insertion | `ydotool` with its **user** daemon (`ydotoold`) and/or `wtype` |
 | X11 insertion | `xdotool` |
 
 Oto can still leave the result on the clipboard when no supported paste tool is available.
+
+Installing `ydotool` alone is not enough: the daemon must be running. On Arch and most distros it is a **systemd user unit** (not a system unit), so use `--user`:
+
+```bash
+systemctl --user enable --now ydotool.service
+systemctl --user status ydotool.service   # should be active
+```
+
+Do not run `systemctl start ydotool.service` without `--user` — that looks for a system unit and fails with “Unit ydotool.service not found.” The unit name is one word: `ydotool.service` (no space after the dot).
+
+Your user should be in the `input` group so `ydotoold` can open `/dev/uinput` (log out and back in after `usermod -aG input $USER` if needed).
 
 On Arch Linux, a typical development setup is:
 
 ```bash
 sudo pacman -S --needed base-devel webkit2gtk-4.1 libayatana-appindicator \
   alsa-lib libsecret nodejs npm rust clang cmake patchelf wtype ydotool wl-clipboard
+
+# Required for reliable Wayland typing (ydotool first in Oto's chain)
+systemctl --user enable --now ydotool.service
 ```
 
 ## Quick start
@@ -191,7 +205,13 @@ The four modes are:
 
 Oto first searches the AT-SPI accessibility tree for the focused editable object and replaces its selection or inserts at its caret. Its Wayland direct-typing order follows the practical approach used by [Hyprvoice](https://github.com/leonardotrapani/hyprvoice): `ydotool` first, then `wtype`, with line terminators converted to spaces so generated Enter keys cannot submit a form. Oto then adds its own clipboard-and-paste fallback. On X11, direct typing uses `xdotool --clearmodifiers`.
 
-Oto also waits briefly after push-to-talk release before generating input. This lets Ctrl, Shift, Alt, or Super return to the released state instead of accidentally transforming the generated paste shortcut. Some sandboxed, privileged, terminal, or custom-rendered applications may still reject accessibility and synthetic input; use the insertion test to verify your target application.
+On Hyprland (and other Wayland compositors), prefer a running `ydotoold` over `wtype` alone. `wtype` can exit successfully without inserting into many focused apps; `ydotool` injects via `/dev/uinput` and is more reliable. Enable the daemon once:
+
+```bash
+systemctl --user enable --now ydotool.service
+```
+
+Oto also waits briefly after push-to-talk release before generating input, releases leftover modifiers, and restores the Hyprland focus target captured when recording started so keys land in the app you were dictating into. Some sandboxed, privileged, terminal, or custom-rendered applications may still reject accessibility and synthetic input; use the insertion test to verify your target application.
 
 ## Development
 
@@ -293,12 +313,24 @@ Review the policies of the provider you select. Use a trusted custom endpoint if
 4. Test the pipeline with tray **Start Listening** / **Stop Listening**. If the tray path works, the problem is shortcut registration rather than the overlay or microphone.
 5. Use **Appearance → Preview listening** to test the overlay independently.
 
-### Text is copied but not inserted
+### Text is transcribed (overlay works) but not inserted
 
-- Install `ydotool` (and run `ydotoold`) or `wtype` on Wayland; install `xdotool` on X11.
-- Start with **Auto** and run **Test insertion** with another editable application focused. Try **Direct type** for clipboard-hostile apps and **Clipboard + paste** for apps where `wtype` direct typing is unreliable.
+- On Wayland, install `ydotool` and **start its user daemon** (package install does not enable it by itself):
+
+  ```bash
+  systemctl --user enable --now ydotool.service
+  systemctl --user status ydotool.service
+  ydotool type -- 'hello '   # focus a text field first; should type into it
+  ```
+
+  Use `systemctl --user`, not system-level `systemctl`. A missing unit usually means the `--user` flag was omitted.
+
+- Optionally install `wtype` as a fallback; on Hyprland, `ydotool` is the reliable path.
+- On X11, install `xdotool`.
+- Start with **Auto** and run **Test insertion** with another editable application focused (not Oto Settings). Try **Direct type** for clipboard-hostile apps and **Clipboard + paste** for apps where typing tools are unreliable.
+- Keep focus on the target text field while holding the push-to-talk shortcut; Oto restores that Hyprland window before typing when possible.
 - Some applications block synthetic input; use clipboard-only mode there.
-- `ydotool` also requires its daemon and the relevant input-device permissions.
+- `ydotool` needs `ydotoold` running and permission to open `/dev/uinput` (typically membership in the `input` group).
 
 ### API-key or keyring errors
 
