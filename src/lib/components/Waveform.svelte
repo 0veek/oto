@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { audioLevel } from "$lib/stores/pipeline";
 
-  let { level }: { level?: number } = $props();
+  let { level, compact = false }: { level?: number; compact?: boolean } = $props();
   let canvas: HTMLCanvasElement;
   let levels: number[] = [0.22, 0.58, 0.88, 0.46, 0.78, 0.62, 0.3];
   const bars = 7;
@@ -50,15 +50,15 @@
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     const styles = getComputedStyle(canvas);
-    const active = styles.getPropertyValue("--color-overlay-accent").trim();
-    const quiet = styles.getPropertyValue("--color-overlay-wave-quiet").trim();
+    const active = styles.getPropertyValue("--color-overlay-accent-canvas").trim();
+    const quiet = styles.getPropertyValue("--color-overlay-wave-quiet-canvas").trim();
 
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, width, height);
 
-    const gap = 4;
+    const gap = compact ? 1.5 : 4;
     const barWidth = (width - gap * (bars - 1)) / bars;
     for (let index = 0; index < bars; index += 1) {
       const value = levels[index] ?? 0.08;
@@ -75,7 +75,7 @@
   }
 </script>
 
-<canvas bind:this={canvas} class="oto-waveform" aria-hidden="true"></canvas>
+<canvas bind:this={canvas} class:compact class="oto-waveform" aria-hidden="true"></canvas>
 
 <style>
   .oto-waveform {
@@ -83,5 +83,11 @@
     width: 4.75rem;
     height: 2rem;
     flex: 0 0 4.75rem;
+  }
+
+  .oto-waveform.compact {
+    width: 1.375rem;
+    height: 1.125rem;
+    flex-basis: 1.375rem;
   }
 </style>

@@ -2,11 +2,15 @@
   import { onMount } from "svelte";
   import FloatingPill from "$lib/components/FloatingPill.svelte";
 
+  const initialParams = typeof window === "undefined" ? null : new URL(window.location.href).searchParams;
   let actions = $state(0);
-  let referenceMode = $state(false);
+  let referenceMode = $state(["reference", "single"].includes(initialParams?.get("mode") ?? ""));
+  let singleState = $state(initialParams?.get("mode") === "single" ? initialParams.get("state") : null);
 
   onMount(() => {
-    referenceMode = new URL(window.location.href).searchParams.get("mode") === "reference";
+    const params = new URL(window.location.href).searchParams;
+    referenceMode = ["reference", "single"].includes(params.get("mode") ?? "");
+    singleState = params.get("mode") === "single" ? params.get("state") : null;
   });
 
   const examples = [
@@ -69,10 +73,10 @@
   <title>Oto overlay states</title>
 </svelte:head>
 
-<main class:reference-mode={referenceMode} class="overlay-preview">
+<main class:reference-mode={referenceMode} class:single-mode={singleState !== null} class="overlay-preview">
   {#if referenceMode}
     <section class="overlay-preview__reference" aria-label="Primary overlay states">
-      {#each referenceExamples as preview (preview.state)}
+      {#each referenceExamples.filter((preview) => !singleState || preview.state === singleState) as preview (preview.state)}
         <FloatingPill {preview} onPreviewAction={() => (actions += 1)} />
       {/each}
     </section>
@@ -82,7 +86,7 @@
         <p class="overlay-preview__eyebrow">Oto · overlay system</p>
         <h1>One little pod, every state.</h1>
       </div>
-      <p class="overlay-preview__meta">340 × 80 · {actions} test {actions === 1 ? "action" : "actions"}</p>
+      <p class="overlay-preview__meta">252 × 44 · {actions} test {actions === 1 ? "action" : "actions"}</p>
     </header>
 
     <section aria-label="Overlay component states">
@@ -196,10 +200,14 @@
 
   .overlay-preview > .overlay-preview__reference {
     display: grid;
-    width: 21.25rem;
+    width: 15.75rem;
     grid-template-columns: 1fr;
     gap: 0.5rem;
     transform: scale(2.35);
+  }
+
+  .overlay-preview.single-mode > .overlay-preview__reference {
+    transform: none;
   }
 
   @media (max-width: 58rem) {

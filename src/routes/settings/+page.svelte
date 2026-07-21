@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { IconCircleCheck, IconDeviceFloppy } from "@tabler/icons-svelte";
+  import { IconCircleCheck } from "@tabler/icons-svelte";
   import type { AppConfig } from "$lib/types";
   import SettingsShell from "$lib/components/settings/SettingsShell.svelte";
   import ProvidersSection from "$lib/components/settings/ProvidersSection.svelte";
@@ -14,6 +14,7 @@
   import PrivacySection from "$lib/components/settings/PrivacySection.svelte";
   import AppearanceSection from "$lib/components/settings/AppearanceSection.svelte";
   import InjectionSection from "$lib/components/settings/InjectionSection.svelte";
+  import PermissionsSection from "$lib/components/settings/PermissionsSection.svelte";
   import AboutSection from "$lib/components/settings/AboutSection.svelte";
   import { applyTheme } from "$lib/theme";
 
@@ -25,8 +26,9 @@
     { id: "snippets", label: "Snippets" },
     { id: "styles", label: "Styles & commands" },
     { id: "history", label: "History" },
+    { id: "permissions", label: "Permissions" },
     { id: "appearance", label: "Appearance" },
-    { id: "privacy", label: "Privacy & sync" },
+    { id: "privacy", label: "Privacy" },
     { id: "injection", label: "Injection" },
     { id: "about", label: "About" },
   ] as const;
@@ -184,6 +186,8 @@
         <HistorySection />
       {:else if active === "appearance"}
         <AppearanceSection bind:config />
+      {:else if active === "permissions"}
+        <PermissionsSection />
       {:else if active === "privacy"}
         <PrivacySection bind:config />
       {:else if active === "injection"}
@@ -211,8 +215,7 @@
               <IconCircleCheck aria-hidden="true" size={18} stroke={1.8} />
               Saved
             {:else}
-              <IconDeviceFloppy aria-hidden="true" size={18} stroke={1.8} />
-              {saving ? "Saving…" : "Save changes"}
+              {saving ? "Saving…" : "Save Changes"}
             {/if}
           </button>
           </div>

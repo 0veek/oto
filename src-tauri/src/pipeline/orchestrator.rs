@@ -712,7 +712,7 @@ pub fn position_overlay(w: &tauri::WebviewWindow) {
     if let Some(monitor) = monitor {
         let screen = monitor.size();
         let origin = monitor.position();
-        let win = w.outer_size().unwrap_or(tauri::PhysicalSize::new(320, 72));
+        let win = w.outer_size().unwrap_or(tauri::PhysicalSize::new(260, 54));
         let margin_bottom = 96i32;
         let x = origin.x + (screen.width as i32 - win.width as i32) / 2;
         let y = origin.y + screen.height as i32 - win.height as i32 - margin_bottom;

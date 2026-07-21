@@ -1,86 +1,77 @@
-# Oto Overlay Pill Design QA
+# Oto Settings and Overlay Redesign QA
 
 ## Evidence
 
-- Source visual truth: `/home/aveek/.codex/generated_images/019f7a55-4a5f-73c3-83bb-5f4ca4491fbc/exec-7ce4765e-c02d-447e-8e1c-89b71dd33747.png`
-- Browser-rendered implementation: `/tmp/oto-overlay-reference-mode.png`
-- Viewport: `1448 × 1086` CSS pixels at device scale 1
-- State: Midnight theme; Listening, Processing, Inserted, and Couldn’t insert
-- Full-view side-by-side comparison: `/tmp/oto-overlay-comparison.png`
-- Focused Listening comparison: `/tmp/oto-overlay-focus-comparison.png`
-- Eight-state interaction board: `/tmp/oto-overlay-preview.png`
-- Runtime footprint: `340 × 80` CSS pixels
+- Source visual truth: `/home/aveek/Downloads/Images/drive.usercontent.google.com/Generated image 1.png`
+- Browser-rendered settings implementation: `/tmp/oto-settings-final2.png`
+- Browser-rendered overlay implementation: `/tmp/oto-overlay-final2.png`
+- Settings viewport: `1200 × 733` CSS pixels at device scale 1
+- Overlay runtime viewport: `260 × 54` CSS pixels at device scale 1; visible pill `252 × 44`
+- Source pixels: `1486 × 1060`; source app-content crop `1210 × 733`, normalized to `1200 × 733`
+- Overlay source crop and implementation crop: `252 × 44` each; no density resampling
+- State: Midnight theme, Providers selected, Groq preset, no stored key; overlay Processing state
+- Full-view combined comparison: `/tmp/oto-settings-comparison2.png`
+- Focused overlay combined comparison: `/tmp/oto-pill-comparison2.png`
 
 ## Findings
 
 - No actionable P0, P1, or P2 differences remain.
-- [P3] The leading mark uses Oto’s real shipped icon rather than redrawing the concept’s generic open-ring symbol.
-  - Location: circular brand pod.
-  - Evidence: the source uses a simplified cyan ring; the implementation uses the existing cyan waveform-ring mark with its amber timing dot.
-  - Impact: the silhouette stays faithful while brand recognition is stronger and no approximate SVG or CSS logo is introduced.
-  - Classification: accepted product-asset constraint.
-- [P3] The implementation is optically denser than the enlarged concept board.
-  - Location: label, waveform, and action spacing.
-  - Evidence: the implementation preserves the production window’s exact `340 × 80` footprint and a real 44 px action target; the concept is an enlarged visual study without runtime dimensions.
-  - Impact: typography is slightly more compact, while the connected split-pod hierarchy and state readability remain intact.
-  - Classification: accepted runtime constraint.
+- [P3] Production keeps the operating system's native window title bar instead of recreating the macOS traffic-light chrome inside the webview.
+  - Location: settings window frame.
+  - Evidence: the source includes macOS window controls; the browser comparison intentionally starts at the app-owned content boundary.
+  - Impact: platform controls remain genuine on Linux/macOS and the settings content keeps the reference proportions.
+  - Classification: accepted platform constraint.
+- [P3] The reference picks up a faint wallpaper texture through its window material, while Oto uses a stable opaque midnight surface.
+  - Location: sidebar and main background.
+  - Evidence: structure and sampled average colors match, but the reference has ambient desktop variation.
+  - Impact: the implementation is slightly flatter but more predictable across Linux compositors.
+  - Classification: accepted cross-platform constraint.
 
 ## Required Fidelity Surfaces
 
-- Fonts and typography: Geist Variable matches the existing Oto system. Labels use a compact 15 px/600 treatment with single-line truncation for dynamic errors; hierarchy, optical weight, letter spacing, and line height were checked in the focused comparison.
-- Spacing and layout rhythm: the circle-over-pill silhouette, overlap, 64 px status rail, 72 px brand pod, 44 px action, inset state icon, capsule radii, and compact vertical rhythm match the selected direction within the exact runtime footprint.
-- Colors and visual tokens: all overlay colors, borders, focus treatment, shadows, success cyan, live amber, and insertion-error coral come from semantic OKLCH tokens in `tokens.css`. No gradients, glass effects, or hard-coded component colors are present.
-- Image quality and asset fidelity: the leading pod uses Oto’s real raster application mark. Status and action icons come from one Tabler outline family; the audio visualization is a real canvas driven by pipeline levels. No inline SVG, emoji, placeholder icon, or approximate CSS logo is used.
-- Copy and content: the visible production labels are concise and state-specific: `Listening`, `Processing`, `Inserted`, `Couldn’t insert`, and `Ready`. Actual pipeline detail remains available through the accessible label and title without crowding the live overlay.
+- Fonts and typography: Geist Variable provides the same compact system-sans character as the reference. Heading, description, navigation, labels, control text, weights, line heights, and single-line truncation were checked in the combined view.
+- Spacing and layout rhythm: the final desktop grid uses a 300 px sidebar, 48 px content inset, 200 px label column, matched row dividers, 44 px controls, and a lower-right `164 × 48` save action. The settings source and implementation align at the same normalized viewport.
+- Colors and visual tokens: the midnight paper, sidebar, selected row, controls, subtle dividers, cyan active accent, muted copy, amber key warning, and compact overlay surfaces are all mapped through semantic tokens in `tokens.css`.
+- Image quality and asset fidelity: the target contains no app-owned raster imagery. All visible UI icons use the installed Tabler outline family; the audio mark is a real canvas waveform driven by pipeline level data. No custom SVG, emoji, placeholder, or CSS-drawn icon replaces a target asset.
+- Copy and content: Providers, the OpenAI-compatible provider description, field labels, Groq URL, keyring guidance, no-key warning, Save Key, Save Changes, and Processing match the source intent and visible hierarchy.
 
-## Accessibility and Behavior
+## Behavior, Responsiveness, and Accessibility
 
-- The component is a polite live status region with a full state label.
-- Cancel and dismiss actions expose descriptive accessible names and titles.
-- Keyboard focus is immediate and visible; the tested action has a 2 px focus outline and a `44 × 44` target.
-- Default, hover, focus, active, disabled, loading, error, and success states are present in the preview wrapper.
-- Motion is limited to state entry, live dots, waveform samples, processing blocks, and the busy spinner; all motion is disabled by the reduced-motion media query.
-- Long dynamic details truncate visually and remain available to assistive technology.
-
-## Browser Checks
-
-- Preview URL: `http://127.0.0.1:4176/overlay-preview`
-- Primary interactions tested: Cancel/Dismiss click, keyboard Tab focus, pressed state, disabled action, busy action, processing animation, success, and insertion error.
-- Action behavior: clicking the default Cancel control incremented the preview’s test-action counter from 0 to 1.
-- Rendered state count: 8 pills and 8 action controls, including 2 intentionally disabled/busy controls.
-- Console errors on the browser preview route: none.
-- Horizontal overflow at 320, 375, 544, 768, and 1200 px: none.
-- Production overlay check at `340 × 80`: root bounds exactly `0, 0, 340, 80`; action target `44 × 44`; HTML and body backgrounds transparent; no horizontal or vertical overflow.
+- Sidebar search filters to the matching Appearance item, and `Ctrl/Cmd + F` focuses it.
+- Section navigation was exercised from the filtered result; Appearance rendered correctly.
+- Changing the provider preset to OpenAI updated the Base URL to `https://api.openai.com/v1`.
+- The overlay Cancel action was exercised and the preview action counter advanced from 0 to 1.
+- No horizontal overflow at `1200 × 733`, `900 × 700`, `768 × 720`, or `390 × 800`. The desktop sidebar remains at 900 px; the compact header/select takes over at 768 px and below.
+- Browser console errors checked: none.
+- Navigation, search, inputs, selects, save actions, overlay action, semantic live status, focus-visible treatment, disabled states, and reduced-motion support remain functional.
 
 ## Comparison History
 
-1. Structure pass
-   - [P2] Listening dots initially sat after the waveform instead of beneath the label, and Inserted lacked the concept’s trailing dismiss control.
-   - Fixes: moved the amber live dots into the label stack and made the real action pod available across Listening, Processing, Inserted, and Error.
-2. Detail pass
-   - [P2] The first waveform used nine narrow samples and the processing blocks were too tall relative to the source.
-   - Fixes: reduced the waveform to seven thicker samples, normalized processing blocks to compact rounded squares, and tuned label weight and spacing.
-3. Asset pass
-   - [P2] The first mark treatment used a small nested ring that read as a separate badge.
-   - Fixes: removed the extra ring, enlarged the real Oto mark, and matched the pod surface token to the mark’s native navy field.
-4. Final matched-state pass
-   - Evidence: `/tmp/oto-overlay-comparison.png` and `/tmp/oto-overlay-focus-comparison.png`.
-   - Result: no actionable P0, P1, or P2 findings remain. The two P3 product constraints above are accepted.
+1. Baseline capture
+   - [P1] The settings UI used two narrow navigation rails and a bordered provider card instead of the source's single searchable sidebar and flat form rows.
+   - [P1] The production overlay occupied `340 × 80` and used a large circular brand pod, materially exceeding the source's compact capsule.
+2. Structure pass
+   - Fixes: consolidated navigation into a single grouped sidebar, added working search, added the visible Permissions destination, flattened Providers into aligned rows, and reduced the overlay to a `252 × 44` capsule.
+   - [P2] The provider rows and save action initially sat too high relative to the source.
+3. Proportion pass
+   - Fixes: matched the source's 300 px sidebar, row padding and dividers, content insets, save-button size and bottom offset, and overlay icon/label/activity/action positions.
+   - [P2] The first implementation used surfaces that were visibly darker than the source.
+4. Color and detail pass
+   - Fixes: sampled and raised midnight surface tokens, neutralized the compact overlay waveform, aligned the active-sidebar accent inset, and retained the source's restrained cyan/amber semantics.
+   - Post-fix evidence: `/tmp/oto-settings-comparison2.png` and `/tmp/oto-pill-comparison2.png`.
+   - Result: no actionable P0, P1, or P2 findings remain.
 
 ## Implementation Checklist
 
-- [x] Connected playful split-pod silhouette in the production `340 × 80` window
-- [x] Live seven-sample audio waveform and amber listening cadence
-- [x] Processing, inserted, error, and dormant state treatments
-- [x] Real 44 px Cancel/Dismiss control with full interaction states
-- [x] Real Oto mark and one consistent vector icon family
-- [x] Transparent Tauri window and transparent overlay document surface
-- [x] Reduced-motion support and accessible live-state copy
-- [x] Eight-state component preview and responsive checks
-- [x] Svelte diagnostics, production build, and Rust/Tauri compile check
+- [x] Single searchable sidebar with Voice, Writing, and System groups
+- [x] Source-matched Providers layout and working form controls
+- [x] Lower-right Save Changes action and keyboard save behavior
+- [x] Compact `252 × 44` overlay across listening, processing, done, error, and idle states
+- [x] Responsive desktop and compact settings navigation
+- [x] Svelte diagnostics, production build, Rust/Tauri compile check, browser interactions, and console check
 
 ## Follow-up Polish
 
-- If Oto later ships a transparent high-resolution brand asset, the leading mark can adopt it without changing the pod layout.
+- If Oto adopts per-platform window materials later, macOS can use native vibrancy while Linux keeps the current stable opaque surface.
 
 final result: passed

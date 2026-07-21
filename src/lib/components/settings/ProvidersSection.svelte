@@ -115,7 +115,7 @@
   }
 </script>
 
-<section class="space-y-6">
+<section class="provider-section">
   <header>
     <h2 class="text-xl font-semibold tracking-tight">Providers</h2>
     <p class="mt-1 text-sm text-slate-400">
@@ -123,14 +123,12 @@
     </p>
   </header>
 
-  <div
-    class="space-y-5 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl backdrop-blur-xl"
-  >
-    <label class="block space-y-1.5">
-      <span class="text-sm font-medium text-slate-300">Provider preset</span>
-      <div class="select-wrap">
+  <div class="provider-form">
+    <label class="provider-row">
+      <span class="provider-row__label">Provider preset</span>
+      <div class="provider-row__control select-wrap">
         <select
-          class="provider-select w-full rounded-xl border border-white/10 px-3 py-2.5 pr-10 text-sm outline-none transition focus:border-sky-400/50 focus:ring-2 focus:ring-sky-400/20"
+          class="provider-select"
           value={config.provider_preset}
           onchange={onPresetChange}
         >
@@ -143,7 +141,9 @@
     </label>
 
     {#if config.provider_preset === "custom"}
-      <div class="space-y-3 rounded-xl border border-white/10 bg-slate-900/30 p-4">
+      <div class="provider-row provider-row--stacked">
+        <div class="provider-row__label">Custom provider</div>
+        <div class="provider-row__control space-y-3 rounded-xl border border-white/10 bg-slate-900/30 p-4">
         <div class="flex items-center justify-between gap-3">
           <div><div class="text-sm font-medium text-slate-200">Provider profiles</div><div class="text-xs text-slate-500">Declarative plugins for OpenAI-compatible endpoints.</div></div>
           <button type="button" class="rounded-lg bg-white/10 px-3 py-1.5 text-xs hover:bg-white/15" onclick={addProfile}>Add profile</button>
@@ -155,7 +155,7 @@
           </select>
           <IconChevronDown aria-hidden="true" size={16} stroke={1.7} />
         </div>
-        {#if config.active_custom_provider_id}
+          {#if config.active_custom_provider_id}
           {@const profile = config.custom_providers.find((item) => item.id === config.active_custom_provider_id)}
           {#if profile}
             <div class="grid gap-2 sm:grid-cols-2">
@@ -170,60 +170,66 @@
               Active profile is missing. Choose another profile or use legacy fields below.
             </p>
           {/if}
-        {/if}
+          {/if}
+        </div>
       </div>
     {/if}
 
     {#if config.provider_preset !== "custom" || !config.active_custom_provider_id}
-      <label class="block space-y-1.5">
-        <span class="text-sm font-medium text-slate-300">Base URL</span>
-        <input
-          type="url"
-          class="w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-sky-400/50 focus:ring-2 focus:ring-sky-400/20"
-          placeholder="https://api.example.com/v1"
-          bind:value={config.base_url}
-        />
-        <span class="text-xs text-slate-500">
-          OpenAI-compatible API root (…/v1). Updated automatically for known presets.
+      <label class="provider-row">
+        <span class="provider-row__label">Base URL</span>
+        <span class="provider-row__control">
+          <input
+            type="url"
+            class="w-full"
+            placeholder="https://api.example.com/v1"
+            bind:value={config.base_url}
+          />
+          <span class="provider-row__hint">
+            OpenAI-compatible API root (…/v1). Updated automatically for known presets.
+          </span>
         </span>
       </label>
     {:else}
-      <p class="rounded-xl border border-white/10 bg-slate-900/30 px-3 py-2 text-xs text-slate-500">
-        Base URL and model IDs come from the active provider profile above.
-      </p>
+      <div class="provider-row">
+        <span class="provider-row__label">Base URL</span>
+        <p class="provider-row__control provider-row__hint">Base URL and model IDs come from the active provider profile above.</p>
+      </div>
     {/if}
 
-    <div class="space-y-1.5">
-      <span class="text-sm font-medium text-slate-300">API key</span>
-      <div class="flex flex-col gap-2 sm:flex-row">
-        <input
-          type="password"
-          class="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-sky-400/50 focus:ring-2 focus:ring-sky-400/20"
-          placeholder={keyPresent ? "Enter new key to replace…" : "sk-…"}
-          autocomplete="off"
-          spellcheck="false"
-          bind:value={keyDraft}
-        />
-        <button
-          type="button"
-          class="shrink-0 rounded-xl bg-sky-500/90 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={keyBusy}
-          onclick={saveKey}
-        >
-          {keyBusy ? "Saving…" : "Save key"}
-        </button>
-      </div>
-      <p class="text-xs text-slate-500">
-        Keys never write to config.json — only the OS keyring.
-        {#if keyPresent && keyHint}
-          <span class="text-emerald-400/90"> Stored: {keyHint}</span>
-        {:else if !keyPresent}
-          <span class="text-amber-400/90"> No key stored for this preset.</span>
+    <div class="provider-row">
+      <span class="provider-row__label">API key</span>
+      <div class="provider-row__control">
+        <div class="provider-key-field">
+          <input
+            type="password"
+            class="min-w-0 flex-1"
+            placeholder={keyPresent ? "Enter new key to replace…" : "••••••••••••••••••••"}
+            autocomplete="off"
+            spellcheck="false"
+            bind:value={keyDraft}
+          />
+          <button
+            type="button"
+            class="provider-key-field__button"
+            disabled={keyBusy}
+            onclick={saveKey}
+          >
+            {keyBusy ? "Saving…" : "Save Key"}
+          </button>
+        </div>
+        <p class="provider-row__hint">
+          Keys never write to config.json — only the OS keyring.
+          {#if keyPresent && keyHint}
+            <span class="text-emerald-400/90"> Stored: {keyHint}</span>
+          {:else if !keyPresent}
+            <span class="text-amber-400/90"> No key stored for this preset.</span>
+          {/if}
+        </p>
+        {#if keyStatus}
+          <p class="provider-row__hint text-slate-300">{keyStatus}</p>
         {/if}
-      </p>
-      {#if keyStatus}
-        <p class="text-xs text-slate-300">{keyStatus}</p>
-      {/if}
+      </div>
     </div>
   </div>
 </section>

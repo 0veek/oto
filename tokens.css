@@ -6,17 +6,17 @@
  * icons: pass (30) · mobile: pass (34, 49, 50–57)
  */
 :root {
-  --color-paper: oklch(13% 0.018 235);
-  --color-paper-2: oklch(16% 0.019 235);
-  --color-paper-3: oklch(20% 0.02 235);
-  --color-paper-raised: oklch(23% 0.021 235);
+  --color-paper: oklch(22% 0.012 240);
+  --color-paper-2: oklch(20.8% 0.014 240);
+  --color-paper-3: oklch(25% 0.016 238);
+  --color-paper-raised: oklch(28% 0.017 237);
   --color-ink: oklch(95% 0.008 220);
   --color-ink-2: oklch(82% 0.012 225);
-  --color-muted: oklch(69% 0.014 230);
-  --color-subtle: oklch(57% 0.015 232);
-  --color-rule: oklch(29% 0.02 235);
-  --color-rule-strong: oklch(40% 0.022 232);
-  --color-accent: oklch(78% 0.145 211);
+  --color-muted: oklch(72% 0.014 230);
+  --color-subtle: oklch(60% 0.015 232);
+  --color-rule: oklch(27% 0.017 238);
+  --color-rule-strong: oklch(37% 0.021 234);
+  --color-accent: oklch(76% 0.14 211);
   --color-accent-strong: oklch(70% 0.16 211);
   --color-accent-ink: oklch(14% 0.025 235);
   --color-focus: oklch(83% 0.13 210);
@@ -26,12 +26,12 @@
   --color-error: oklch(70% 0.17 25);
 
   /* Overlay stays dark and legible against arbitrary desktop wallpaper. */
-  --color-overlay-surface: oklch(17% 0.025 236);
-  --color-overlay-surface-raised: oklch(20% 0.03 236);
+  --color-overlay-surface: oklch(24% 0.014 238);
+  --color-overlay-surface-raised: oklch(26% 0.016 236);
   --color-overlay-brand: oklch(17.367% 0.0602 262.6);
-  --color-overlay-action: oklch(23% 0.028 236);
-  --color-overlay-action-hover: oklch(28% 0.032 232);
-  --color-overlay-action-active: oklch(31% 0.038 227);
+  --color-overlay-action: oklch(24% 0.014 238);
+  --color-overlay-action-hover: oklch(29% 0.018 235);
+  --color-overlay-action-active: oklch(32% 0.022 232);
   --color-overlay-ink: oklch(96% 0.008 220);
   --color-overlay-ink-2: oklch(79% 0.014 225);
   --color-overlay-muted: oklch(60% 0.018 230);
@@ -39,13 +39,15 @@
   --color-overlay-rule-strong: oklch(43% 0.035 230);
   --color-overlay-rule-hover: oklch(55% 0.052 222);
   --color-overlay-accent: oklch(80% 0.15 211);
+  --color-overlay-accent-canvas: #b9cbd0;
   --color-overlay-accent-rule: oklch(68% 0.11 214 / 0.62);
   --color-overlay-focus: oklch(82% 0.145 211 / 0.45);
   --color-overlay-wave-quiet: oklch(53% 0.07 218);
+  --color-overlay-wave-quiet-canvas: #64777d;
   --color-overlay-warm: oklch(84% 0.17 83);
   --color-overlay-error: oklch(75% 0.16 28);
   --color-overlay-error-rule: oklch(58% 0.12 28 / 0.72);
-  --shadow-overlay: 0 0.625rem 1.5rem oklch(4% 0.015 235 / 0.42);
+  --shadow-overlay: 0 0.5rem 1.5rem oklch(4% 0.015 235 / 0.38);
   --shadow-overlay-brand: 0 0.75rem 1.75rem oklch(4% 0.015 235 / 0.5);
 
   --font-display: "Geist Variable", "Geist", ui-sans-serif, sans-serif;

@@ -3,6 +3,7 @@
     IconAlertTriangle,
     IconCheck,
     IconLoader2,
+    IconPointFilled,
     IconX,
   } from "@tabler/icons-svelte";
   import { invoke } from "@tauri-apps/api/core";
@@ -101,39 +102,31 @@
   title={detail || partial || statusLabel(currentState)}
 >
   <div class="oto-pill__rail" data-tauri-drag-region>
-    <div class="oto-pill__content">
-      {#key currentState}
-        <div class="oto-pill__state">
-          {#if currentState === "listening"}
-            <span class="oto-pill__listening">
-              <span class="oto-pill__label">Listening</span>
-              <span class="oto-pill__live" aria-hidden="true">
-                <i></i><i></i><i></i>
-              </span>
-            </span>
-            <Waveform level={preview?.level} />
-          {:else if currentState === "processing"}
-            <span class="oto-pill__label">{phase || "Processing"}</span>
-            <span class="oto-pill__processing" aria-hidden="true">
-              <i></i><i></i><i></i>
-            </span>
-          {:else if currentState === "done"}
-            <span class="oto-pill__label">Inserted</span>
-            <span class="oto-pill__result oto-pill__result--success" aria-hidden="true">
-              <IconCheck size={22} stroke={2.4} />
-            </span>
-          {:else if currentState === "error"}
-            <span class="oto-pill__label oto-pill__label--error">{detail || "Couldn’t insert"}</span>
-            <span class="oto-pill__result oto-pill__result--error" aria-hidden="true">
-              <IconAlertTriangle size={20} stroke={2.2} />
-            </span>
-          {:else}
-            <span class="oto-pill__label">Ready</span>
-            <span class="oto-pill__ready-dot" aria-hidden="true"></span>
-          {/if}
-        </div>
-      {/key}
-    </div>
+    <span class="oto-pill__status-mark" aria-hidden="true">
+      {#if currentState === "listening"}
+        <Waveform compact level={preview?.level} />
+      {:else if currentState === "processing"}
+        <Waveform compact level={preview?.level ?? 0.48} />
+      {:else if currentState === "done"}
+        <IconCheck size={17} stroke={2.2} />
+      {:else if currentState === "error"}
+        <IconAlertTriangle size={16} stroke={2} />
+      {:else}
+        <IconPointFilled size={14} />
+      {/if}
+    </span>
+
+    {#key currentState}
+      <span class:oto-pill__label--error={currentState === "error"} class="oto-pill__label">
+        {statusLabel(currentState)}
+      </span>
+    {/key}
+
+    {#if currentState === "listening" || currentState === "processing"}
+      <span class="oto-pill__activity" aria-hidden="true">
+        <IconPointFilled size={8} /><IconPointFilled size={8} /><IconPointFilled size={8} />
+      </span>
+    {/if}
 
     {#if hasAction}
       <button
@@ -145,203 +138,93 @@
         onclick={handleAction}
       >
         {#if busy}
-          <IconLoader2 class="oto-pill__spinner" size={21} stroke={2.1} aria-hidden="true" />
+          <IconLoader2 class="oto-pill__spinner" size={15} stroke={2} aria-hidden="true" />
         {:else}
-          <IconX size={22} stroke={2.15} aria-hidden="true" />
+          <IconX size={16} stroke={1.8} aria-hidden="true" />
         {/if}
       </button>
     {/if}
   </div>
-
-  <div class="oto-pill__brand" data-tauri-drag-region aria-hidden="true">
-    <img src="/favicon.png" alt="" draggable="false" />
-  </div>
 </div>
 
 <style>
-  /* Hallmark · component: overlay pill · genre: playful · theme: Oto Midnight
-   * states: default · hover · focus · active · disabled · loading · error · success
-   * pre-emit critique: P5 H5 E5 S5 R5 V5 · contrast: pass (40–41)
-   * slop: pass (1–58) · tokens: pass (48) · responsive/mobile: pass (34, 49–57)
-   */
   .oto-pill {
-    position: relative;
-    width: min(21.25rem, 100vw);
-    height: min(5rem, 100vh);
+    width: min(15.75rem, calc(100vw - 0.5rem));
+    height: min(2.75rem, calc(100vh - 0.5rem));
     color: var(--color-overlay-ink);
     font-family: var(--font-body);
     user-select: none;
-    isolation: isolate;
   }
 
   .oto-pill__rail {
-    position: absolute;
-    inset: 0.5rem 0 0.5rem 3.5rem;
     display: flex;
+    width: 100%;
+    height: 100%;
     align-items: center;
-    min-width: 0;
-    padding: 0.5rem 0.5rem 0.5rem 1.75rem;
-    border: var(--rule-thin) solid var(--color-overlay-rule);
-    border-radius: var(--radius-round);
-    background: var(--color-overlay-surface);
-    box-shadow: var(--shadow-overlay);
-  }
-
-  .oto-pill__brand {
-    position: absolute;
-    inset-block-start: 0.25rem;
-    inset-inline-start: 0;
-    display: grid;
-    width: 4.5rem;
-    height: 4.5rem;
-    place-items: center;
+    gap: 0.875rem;
+    padding: 0.3125rem 0.375rem 0.3125rem 0.875rem;
     border: var(--rule-thin) solid var(--color-overlay-rule-strong);
-    border-radius: 50%;
-    background: var(--color-overlay-brand);
-    box-shadow: var(--shadow-overlay-brand);
+    border-radius: var(--radius-round);
+    background: color-mix(in oklch, var(--color-overlay-surface) 92%, transparent);
+    box-shadow:
+      0 0.5rem 1.5rem oklch(4% 0.015 235 / 0.38),
+      inset 0 1px 0 oklch(100% 0 0 / 0.055);
+    backdrop-filter: blur(18px) saturate(120%);
+    box-sizing: border-box;
   }
 
-  .oto-pill__brand img {
-    position: relative;
-    z-index: 1;
-    width: 3rem;
-    height: 3rem;
-    image-rendering: auto;
-    pointer-events: none;
-  }
-
-  .oto-pill__content {
-    min-width: 0;
-    flex: 1 1 auto;
-  }
-
-  .oto-pill__state {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 0.5rem;
-    animation: oto-state-enter var(--dur-short) var(--ease-out) both;
-  }
-
-  .oto-pill__label {
-    min-width: 4.25rem;
-    max-width: 7.25rem;
-    overflow: hidden;
-    flex: 0 1 auto;
-    color: var(--color-overlay-ink);
-    font-size: 0.9375rem;
-    font-weight: 600;
-    letter-spacing: -0.012em;
-    line-height: 1;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .oto-pill__label--error {
-    min-width: 6.75rem;
-    color: var(--color-overlay-error);
-  }
-
-  .oto-pill__listening {
+  .oto-pill__status-mark {
     display: grid;
-    width: 4.25rem;
-    flex: 0 0 4.25rem;
-    gap: 0.25rem;
-  }
-
-  .oto-pill__listening .oto-pill__label {
-    min-width: 0;
-  }
-
-  .oto-pill__live {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .oto-pill__live i {
-    display: block;
-    width: 0.25rem;
-    height: 0.25rem;
-    border-radius: 50%;
-    background: var(--color-overlay-warm);
-    animation: oto-live 1.05s var(--ease-in-out) infinite;
-  }
-
-  .oto-pill__live i:nth-child(2) {
-    animation-delay: 120ms;
-  }
-
-  .oto-pill__live i:nth-child(3) {
-    animation-delay: 240ms;
-  }
-
-  .oto-pill__processing {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    margin-inline-start: auto;
-    margin-inline-end: 0.75rem;
-  }
-
-  .oto-pill__processing i {
-    display: block;
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: 0.25rem;
-    background: var(--color-overlay-accent);
-    animation: oto-processing 0.9s var(--ease-in-out) infinite alternate;
-  }
-
-  .oto-pill__processing i:nth-child(2) {
-    animation-delay: 130ms;
-  }
-
-  .oto-pill__processing i:nth-child(3) {
-    animation-delay: 260ms;
-  }
-
-  .oto-pill__result {
-    display: grid;
-    width: 2rem;
-    height: 2rem;
-    margin-inline-start: auto;
-    margin-inline-end: 0.5rem;
+    width: 1.375rem;
+    height: 1.375rem;
+    flex: 0 0 1.375rem;
     place-items: center;
-    border: var(--rule-thin) solid currentColor;
-    border-radius: 50%;
-  }
-
-  .oto-pill__result--success {
     color: var(--color-overlay-accent);
   }
 
-  .oto-pill__result--error {
+  .state-error .oto-pill__status-mark,
+  .oto-pill__label--error {
     color: var(--color-overlay-error);
   }
 
-  .oto-pill__ready-dot {
-    width: 0.5rem;
-    height: 0.5rem;
-    margin-inline-start: auto;
-    margin-inline-end: 0.75rem;
-    border-radius: 50%;
-    background: var(--color-overlay-muted);
+  .oto-pill__label {
+    min-width: 0;
+    overflow: hidden;
+    flex: 1 1 auto;
+    color: var(--color-overlay-ink);
+    font-size: 0.8125rem;
+    font-weight: 560;
+    letter-spacing: -0.006em;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    animation: oto-state-enter var(--dur-short) var(--ease-out) both;
+  }
+
+  .oto-pill__activity {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex: 0 0 auto;
+    margin-inline: -0.75rem 0.75rem;
+    color: var(--color-overlay-muted);
+    animation: oto-activity 1.15s var(--ease-in-out) infinite;
   }
 
   .oto-pill__action {
     display: grid;
-    width: 2.75rem;
-    height: 2.75rem;
-    flex: 0 0 auto;
+    width: 2rem;
+    height: 2rem;
+    min-height: 0;
+    flex: 0 0 2rem;
+    padding: 0;
     place-items: center;
-    border: var(--rule-thin) solid var(--color-overlay-rule-strong);
+    border: var(--rule-thin) solid var(--color-overlay-rule);
     border-radius: 50%;
     outline: 2px solid transparent;
-    outline-offset: 2px;
+    outline-offset: 1px;
     color: var(--color-overlay-ink-2);
     background: var(--color-overlay-action);
-    box-shadow: none;
     transition:
       color var(--dur-micro) var(--ease-out),
       background-color var(--dur-micro) var(--ease-out),
@@ -391,30 +274,17 @@
   @keyframes oto-state-enter {
     from {
       opacity: 0;
-      transform: translateX(0.375rem);
+      transform: translateX(0.25rem);
     }
   }
 
-  @keyframes oto-live {
+  @keyframes oto-activity {
     0%,
     100% {
-      opacity: 0.35;
-      transform: translateY(0);
+      opacity: 0.45;
     }
     50% {
       opacity: 1;
-      transform: translateY(-0.1875rem);
-    }
-  }
-
-  @keyframes oto-processing {
-    from {
-      opacity: 0.38;
-      transform: scale(0.78);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
     }
   }
 
@@ -425,13 +295,16 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .oto-pill *,
-    .oto-pill *::before,
-    .oto-pill *::after {
-      scroll-behavior: auto !important;
-      animation-duration: 1ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 1ms !important;
+    .oto-pill__label,
+    .oto-pill__activity,
+    .oto-pill__spinner {
+      animation: none;
     }
+  }
+
+  :global(:root[data-reduce-motion="true"]) .oto-pill__label,
+  :global(:root[data-reduce-motion="true"]) .oto-pill__activity,
+  :global(:root[data-reduce-motion="true"]) .oto-pill__spinner {
+    animation: none;
   }
 </style>
