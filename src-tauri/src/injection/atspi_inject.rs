@@ -1,12 +1,16 @@
 //! AT-SPI2 text insertion into the focused accessible object.
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
+use std::time::{Duration, Instant};
 
 use atspi::proxy::accessible::AccessibleProxy;
 use atspi::proxy::proxy_ext::ProxyExt;
 use atspi::{AccessibilityConnection, Interface, ObjectRefOwned, State};
 
 use crate::error::{OtoError, OtoResult};
+
+const AT_SPI_BUDGET: Duration = Duration::from_millis(400);
+const AT_SPI_MAX_NODES: usize = 2_500;
 
 async fn accessible_for<'a>(
     connection: &'a AccessibilityConnection,
@@ -26,7 +30,17 @@ async fn accessible_for<'a>(
         .map_err(|error| OtoError::Message(format!("AT-SPI proxy: {error}")))
 }
 
+fn object_key(object: &ObjectRefOwned) -> (String, String) {
+    let name = object
+        .name()
+        .map(|n| n.to_string())
+        .unwrap_or_default();
+    let path = object.path().to_string();
+    (name, path)
+}
+
 async fn insert_into_focused(text: &str) -> OtoResult<bool> {
+    let deadline = Instant::now() + AT_SPI_BUDGET;
     let connection = AccessibilityConnection::new()
         .await
         .map_err(|error| OtoError::Message(format!("AT-SPI unavailable: {error}")))?;
@@ -34,18 +48,49 @@ async fn insert_into_focused(text: &str) -> OtoResult<bool> {
         .root_accessible_on_registry()
         .await
         .map_err(|error| OtoError::Message(format!("AT-SPI root: {error}")))?;
-    let mut queue: VecDeque<ObjectRefOwned> = root
+    let children = root
         .get_children()
         .await
-        .map_err(|error| OtoError::Message(format!("AT-SPI applications: {error}")))?
-        .into();
+        .map_err(|error| OtoError::Message(format!("AT-SPI applications: {error}")))?;
+
+    // Prefer active/focused applications so we find the caret before the budget expires.
+    let mut prioritized = Vec::new();
+    let mut rest = Vec::new();
+    for child in children {
+        if child.is_null() {
+            continue;
+        }
+        let is_active = match accessible_for(&connection, &child).await {
+            Ok(accessible) => accessible
+                .get_state()
+                .await
+                .ok()
+                .is_some_and(|state| state.contains(State::Active) || state.contains(State::Focused)),
+            Err(_) => false,
+        };
+        if is_active {
+            prioritized.push(child);
+        } else {
+            rest.push(child);
+        }
+    }
+
+    let mut queue: VecDeque<ObjectRefOwned> = prioritized.into_iter().chain(rest).collect();
+    let mut seen: HashSet<(String, String)> = HashSet::new();
     let mut visited = 0usize;
 
     while let Some(object) = queue.pop_front() {
-        if object.is_null() || visited >= 10_000 {
+        if Instant::now() >= deadline || visited >= AT_SPI_MAX_NODES {
+            break;
+        }
+        // Always count dequeued nodes so nulls cannot spin the loop forever.
+        visited += 1;
+        if object.is_null() {
             continue;
         }
-        visited += 1;
+        if !seen.insert(object_key(&object)) {
+            continue;
+        }
         let accessible = match accessible_for(&connection, &object).await {
             Ok(accessible) => accessible,
             Err(_) => continue,
@@ -96,14 +141,22 @@ async fn insert_into_focused(text: &str) -> OtoResult<bool> {
                 .map_err(|error| OtoError::Message(format!("AT-SPI insert: {error}")));
         }
 
+        if Instant::now() >= deadline {
+            break;
+        }
         if let Ok(children) = accessible.get_children().await {
-            queue.extend(children);
+            for child in children {
+                if !child.is_null() && !seen.contains(&object_key(&child)) {
+                    queue.push_back(child);
+                }
+            }
         }
     }
     Ok(false)
 }
 
 async fn selection_from_focused() -> OtoResult<Option<String>> {
+    let deadline = Instant::now() + AT_SPI_BUDGET;
     let connection = AccessibilityConnection::new()
         .await
         .map_err(|error| OtoError::Message(format!("AT-SPI unavailable: {error}")))?;
@@ -116,12 +169,19 @@ async fn selection_from_focused() -> OtoResult<Option<String>> {
         .await
         .map_err(|error| OtoError::Message(format!("AT-SPI applications: {error}")))?
         .into();
+    let mut seen: HashSet<(String, String)> = HashSet::new();
     let mut visited = 0usize;
     while let Some(object) = queue.pop_front() {
-        if object.is_null() || visited >= 10_000 {
-            continue;
+        if Instant::now() >= deadline || visited >= AT_SPI_MAX_NODES {
+            break;
         }
         visited += 1;
+        if object.is_null() {
+            continue;
+        }
+        if !seen.insert(object_key(&object)) {
+            continue;
+        }
         let accessible = match accessible_for(&connection, &object).await {
             Ok(accessible) => accessible,
             Err(_) => continue,
@@ -160,8 +220,15 @@ async fn selection_from_focused() -> OtoResult<Option<String>> {
             }
             return Ok(None);
         }
+        if Instant::now() >= deadline {
+            break;
+        }
         if let Ok(children) = accessible.get_children().await {
-            queue.extend(children);
+            for child in children {
+                if !child.is_null() && !seen.contains(&object_key(&child)) {
+                    queue.push_back(child);
+                }
+            }
         }
     }
     Ok(None)
@@ -173,7 +240,7 @@ async fn selection_from_focused() -> OtoResult<Option<String>> {
 /// unavailable or unsupported (caller should try the next injection method).
 pub async fn try_atspi_insert(text: &str) -> OtoResult<bool> {
     match tokio::time::timeout(
-        std::time::Duration::from_millis(450),
+        Duration::from_millis(450),
         insert_into_focused(text),
     )
     .await
@@ -192,7 +259,7 @@ pub async fn try_atspi_insert(text: &str) -> OtoResult<bool> {
 
 pub async fn try_atspi_selection() -> OtoResult<Option<String>> {
     match tokio::time::timeout(
-        std::time::Duration::from_millis(450),
+        Duration::from_millis(450),
         selection_from_focused(),
     )
     .await

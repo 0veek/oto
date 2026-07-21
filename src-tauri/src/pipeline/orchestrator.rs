@@ -28,6 +28,15 @@ async fn client_from_config_async(cfg: &crate::config::AppConfig) -> OtoResult<O
         .map_err(|error| OtoError::Message(format!("credential lookup task failed: {error}")))?
 }
 
+fn command_mode_client_error(error: &OtoError) -> String {
+    let message = error.to_string();
+    if message.contains("API key not set") {
+        "Command Mode needs an LLM API key to rewrite the selection. Local Whisper only handles speech-to-text — add a key under Providers, or use a Custom provider pointed at a local OpenAI-compatible server (localhost needs no key).".into()
+    } else {
+        message
+    }
+}
+
 fn transcription_context(cfg: &AppConfig) -> TranscriptionContext {
     TranscriptionContext {
         language: cfg
@@ -374,12 +383,16 @@ impl Pipeline {
                 };
                 match transcribe_from_config(&config, &wav).await {
                     Ok(text) if !text.trim().is_empty() && text != previous => {
+                        // Drop stale partials if PTT released / canceled while inference ran.
                         if pipeline
                             .listening_snapshot(session_epoch)
                             .ok()
                             .flatten()
                             .is_none()
                         {
+                            break;
+                        }
+                        if !pipeline.is_listening() {
                             break;
                         }
                         previous = text.clone();
@@ -508,7 +521,10 @@ impl Pipeline {
             let client = match client_from_config_async(&cfg).await {
                 Ok(client) => client,
                 Err(error) => {
-                    self.finish_error(error.to_string()).await;
+                    // Command Mode rewrites via the LLM provider; Local Whisper only
+                    // covers STT. Surface a clearer message when the polish key is missing.
+                    let message = command_mode_client_error(&error);
+                    self.finish_error(message).await;
                     return Err(error);
                 }
             };
@@ -531,6 +547,10 @@ impl Pipeline {
             let client = match client_from_config_async(&cfg).await {
                 Ok(client) => client,
                 Err(error) => {
+                    if self.session_aborted(session_epoch) {
+                        self.set_phase_idle();
+                        return Ok(());
+                    }
                     self.emit(PipelineEvent::state(
                         PipelineState::Processing,
                         Some(format!("Polish unavailable, using raw: {error}")),
@@ -585,6 +605,12 @@ impl Pipeline {
         cfg: &AppConfig,
         session_epoch: u64,
     ) -> OtoResult<()> {
+        // Cancel during polish/credential lookup must never inject canceled text.
+        if self.session_aborted(session_epoch) {
+            self.set_phase_idle();
+            return Ok(());
+        }
+
         if cfg.history_enabled {
             if let Err(error) = history::append(
                 raw_text,

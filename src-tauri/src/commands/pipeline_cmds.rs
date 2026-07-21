@@ -9,7 +9,6 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn ptt_down(state: State<'_, AppState>) -> Result<(), OtoError> {
-    *state.cancel_flag.lock().await = false;
     state.pipeline.ptt_down().await
 }
 
@@ -25,7 +24,6 @@ pub async fn start_command_mode(
     state: State<'_, AppState>,
     focus_delay_ms: Option<u64>,
 ) -> Result<(), OtoError> {
-    *state.cancel_flag.lock().await = false;
     state
         .pipeline
         .command_down(focus_delay_ms.unwrap_or(0))
@@ -34,7 +32,6 @@ pub async fn start_command_mode(
 
 #[tauri::command]
 pub async fn cancel_dictation(state: State<'_, AppState>) -> Result<(), OtoError> {
-    *state.cancel_flag.lock().await = true;
     state.pipeline.cancel().await
 }
 

@@ -22,7 +22,6 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, Runtime,
 };
-use tokio::sync::Mutex;
 
 fn setup_tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     let start = MenuItem::with_id(
@@ -143,10 +142,7 @@ pub fn run() {
         .setup(|app| {
             app.manage(hotkeys::HotkeyManager::default());
             let pipeline = Arc::new(Pipeline::new(app.handle().clone()));
-            app.manage(AppState {
-                cancel_flag: Arc::new(Mutex::new(false)),
-                pipeline,
-            });
+            app.manage(AppState { pipeline });
 
             setup_tray(app.handle())?;
 

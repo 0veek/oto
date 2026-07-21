@@ -34,7 +34,24 @@ fn load_from(path: &Path) -> OtoResult<Vec<HistoryEntry>> {
     if raw.trim().is_empty() {
         return Ok(vec![]);
     }
-    Ok(serde_json::from_str(&raw)?)
+    match serde_json::from_str(&raw) {
+        Ok(entries) => Ok(entries),
+        Err(error) => {
+            // Self-heal: quarantine corrupt history so append/list keep working.
+            let backup = path.with_extension("json.corrupt");
+            if let Err(move_err) = fs::rename(path, &backup) {
+                eprintln!(
+                    "oto: history.json corrupt ({error}); failed to quarantine: {move_err}"
+                );
+            } else {
+                eprintln!(
+                    "oto: history.json corrupt ({error}); moved to {}",
+                    backup.display()
+                );
+            }
+            Ok(vec![])
+        }
+    }
 }
 
 fn save_to(path: &Path, entries: &[HistoryEntry]) -> OtoResult<()> {
@@ -130,5 +147,15 @@ mod tests {
         }];
         save_to(&path, &entries).unwrap();
         assert_eq!(load_from(&path).unwrap(), entries);
+    }
+
+    #[test]
+    fn corrupt_history_is_quarantined_and_returns_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("history.json");
+        fs::write(&path, "{not valid json").unwrap();
+        assert_eq!(load_from(&path).unwrap(), vec![]);
+        assert!(!path.exists());
+        assert!(path.with_extension("json.corrupt").exists());
     }
 }

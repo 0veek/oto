@@ -28,14 +28,34 @@
   let keyStatus = $state<string | null>(null);
   let keyBusy = $state(false);
 
+  /** Resolve keyring account for the active provider (avoids `custom:null`). */
+  function customKeyAccount(): string | null {
+    const id = config.active_custom_provider_id;
+    if (typeof id === "string" && id.length > 0 && id !== "null") {
+      return `custom:${id}`;
+    }
+    return null;
+  }
+
   async function refreshKeyInfo(preset: ProviderPreset) {
     try {
-      if (preset === "custom" && config.active_custom_provider_id) {
-        const present = await invoke<boolean>("provider_api_key_present", {
-          account: `custom:${config.active_custom_provider_id}`,
-        });
+      if (preset === "custom") {
+        const account = customKeyAccount();
+        if (account) {
+          const present = await invoke<boolean>("provider_api_key_present", { account });
+          if (present) {
+            keyPresent = true;
+            keyHint = "••••";
+            return;
+          }
+          // Fall back to legacy account "custom" for older installs.
+        }
+        const [present, hint] = await Promise.all([
+          invoke<boolean>("api_key_present", { preset: "custom" }),
+          invoke<string | null>("api_key_hint", { preset: "custom" }),
+        ]);
         keyPresent = present;
-        keyHint = present ? "••••" : null;
+        keyHint = hint;
         return;
       }
       const [present, hint] = await Promise.all([
@@ -69,9 +89,10 @@
     keyBusy = true;
     keyStatus = null;
     try {
-      if (config.provider_preset === "custom" && config.active_custom_provider_id) {
+      const customAccount = config.provider_preset === "custom" ? customKeyAccount() : null;
+      if (customAccount) {
         await invoke("set_provider_api_key", {
-          account: `custom:${config.active_custom_provider_id}`,
+          account: customAccount,
           key: keyDraft,
         });
       } else {

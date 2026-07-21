@@ -49,6 +49,9 @@
     const dpr = window.devicePixelRatio || 1;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
+    // Detached / hidden canvas reports 0×0 — skip before barWidth goes negative/NaN.
+    if (width < 2 || height < 2) return;
+
     const styles = getComputedStyle(canvas);
     const active = styles.getPropertyValue("--color-overlay-accent-canvas").trim();
     const quiet = styles.getPropertyValue("--color-overlay-wave-quiet-canvas").trim();
@@ -59,16 +62,17 @@
     context.clearRect(0, 0, width, height);
 
     const gap = compact ? 1.5 : 4;
-    const barWidth = (width - gap * (bars - 1)) / bars;
+    const barWidth = Math.max(1, (width - gap * (bars - 1)) / bars);
     for (let index = 0; index < bars; index += 1) {
       const value = levels[index] ?? 0.08;
-      const barHeight = Math.max(4, value * height * 0.92);
+      const barHeight = Math.max(2, Math.min(height, value * height * 0.92));
       const x = index * (barWidth + gap);
-      const y = (height - barHeight) / 2;
+      const y = Math.max(0, (height - barHeight) / 2);
+      const radius = Math.max(0.5, barWidth / 2);
       context.fillStyle = value > 0.18 ? active : quiet;
       context.globalAlpha = 0.55 + value * 0.45;
       context.beginPath();
-      context.roundRect(x, y, barWidth, barHeight, barWidth / 2);
+      context.roundRect(x, y, barWidth, barHeight, radius);
       context.fill();
     }
     context.globalAlpha = 1;

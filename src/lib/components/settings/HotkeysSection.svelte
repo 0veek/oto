@@ -48,6 +48,10 @@
       <ul class="mt-1.5 list-disc space-y-1 pl-4 text-amber-100/80">
         <li>Click <strong>Save</strong> after changing the hotkey (bottom of Settings).</li>
         <li>
+          On Wayland, registration uses the GlobalShortcuts portal. If save fails with a portal
+          or compositor error, Oto restores the last working shortcut automatically.
+        </li>
+        <li>
           On Hyprland, Oto creates a runtime <code class="rounded bg-white/5 px-1">global</code>
           bind for the configured chord. Make sure
           <code class="rounded bg-white/5 px-1">xdg-desktop-portal-hyprland</code> is running.

@@ -61,37 +61,58 @@ pub async fn set_config(app: AppHandle, mut cfg: AppConfig) -> Result<(), OtoErr
     Ok(())
 }
 
+/// Secret Service / keyring D-Bus calls can block while the daemon is locked.
+/// Run them off the main IPC thread so the settings UI stays responsive.
 #[tauri::command]
-pub fn set_api_key(preset: ProviderPreset, key: String) -> Result<(), OtoError> {
-    secrets::set_api_key(preset_account(&preset), &key)
+pub async fn set_api_key(preset: ProviderPreset, key: String) -> Result<(), OtoError> {
+    let account = preset_account(&preset).to_string();
+    tauri::async_runtime::spawn_blocking(move || secrets::set_api_key(&account, &key))
+        .await
+        .map_err(|error| OtoError::Message(format!("keyring task failed: {error}")))?
 }
 
 #[tauri::command]
-pub fn api_key_present(preset: ProviderPreset) -> Result<bool, OtoError> {
-    Ok(secrets::has_api_key(preset_account(&preset)))
+pub async fn api_key_present(preset: ProviderPreset) -> Result<bool, OtoError> {
+    let account = preset_account(&preset).to_string();
+    tauri::async_runtime::spawn_blocking(move || Ok(secrets::has_api_key(&account)))
+        .await
+        .map_err(|error| OtoError::Message(format!("keyring task failed: {error}")))?
 }
 
 #[tauri::command]
-pub fn api_key_hint(preset: ProviderPreset) -> Result<Option<String>, OtoError> {
-    Ok(secrets::get_api_key(preset_account(&preset))?.map(|k| {
-        if k.len() <= 8 {
-            "••••".into()
-        } else {
-            format!("{}…{}", &k[..4], &k[k.len() - 3..])
-        }
-    }))
+pub async fn api_key_hint(preset: ProviderPreset) -> Result<Option<String>, OtoError> {
+    let account = preset_account(&preset).to_string();
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(secrets::get_api_key(&account)?.map(|k| {
+            if k.len() <= 8 {
+                "••••".into()
+            } else {
+                format!("{}…{}", &k[..4], &k[k.len() - 3..])
+            }
+        }))
+    })
+    .await
+    .map_err(|error| OtoError::Message(format!("keyring task failed: {error}")))?
 }
 
 #[tauri::command]
-pub fn set_provider_api_key(account: String, key: String) -> Result<(), OtoError> {
-    secrets::validate_account(&account)?;
-    secrets::set_api_key(&account, &key)
+pub async fn set_provider_api_key(account: String, key: String) -> Result<(), OtoError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        secrets::validate_account(&account)?;
+        secrets::set_api_key(&account, &key)
+    })
+    .await
+    .map_err(|error| OtoError::Message(format!("keyring task failed: {error}")))?
 }
 
 #[tauri::command]
-pub fn provider_api_key_present(account: String) -> Result<bool, OtoError> {
-    secrets::validate_account(&account)?;
-    Ok(secrets::has_api_key(&account))
+pub async fn provider_api_key_present(account: String) -> Result<bool, OtoError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        secrets::validate_account(&account)?;
+        Ok(secrets::has_api_key(&account))
+    })
+    .await
+    .map_err(|error| OtoError::Message(format!("keyring task failed: {error}")))?
 }
 
 /// Cargo package version shown in About.

@@ -373,11 +373,8 @@ fn hyprland_modmask(parts: &HotkeyParts) -> u32 {
 
 #[cfg(target_os = "linux")]
 fn hyprland_modifiers_from_mask(mask: u32) -> OtoResult<String> {
-    if mask & !(1 | 4 | 8 | 64) != 0 {
-        return Err(OtoError::Message(format!(
-            "cannot safely replace Oto's existing Hyprland binding (unknown modifier mask {mask})"
-        )));
-    }
+    // Ignore unknown modifier bits rather than aborting hotkey registration.
+    // Hyprland may set extra flags we do not model; known bits still unbind correctly.
     let mut modifiers = Vec::new();
     if mask & 4 != 0 {
         modifiers.push("CTRL");
@@ -392,6 +389,17 @@ fn hyprland_modifiers_from_mask(mask: u32) -> OtoResult<String> {
         modifiers.push("SUPER");
     }
     Ok(modifiers.join(" "))
+}
+
+/// Format a Hyprland `unbind` argument. Modifier-less chords must be `key`
+/// (not `,key`) — a leading comma is invalid hyprctl syntax.
+#[cfg(target_os = "linux")]
+fn hyprland_unbind_spec(modifiers: &str, key: &str) -> String {
+    if modifiers.is_empty() {
+        key.to_string()
+    } else {
+        format!("{modifiers},{key}")
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -478,11 +486,11 @@ fn configure_hyprland_binding(hotkey: &str) -> OtoResult<()> {
 
     for stale in stale_oto {
         let stale_modifiers = hyprland_modifiers_from_mask(stale.modmask)?;
-        if let Err(error) =
-            run_hyprland_keyword("unbind", &format!("{stale_modifiers},{}", stale.key))
-        {
+        let unbind_spec = hyprland_unbind_spec(&stale_modifiers, &stale.key);
+        if let Err(error) = run_hyprland_keyword("unbind", &unbind_spec) {
             if !target_exists {
-                let _ = run_hyprland_keyword("unbind", &format!("{modifier_text},{target_key}"));
+                let rollback = hyprland_unbind_spec(&modifier_text, &target_key);
+                let _ = run_hyprland_keyword("unbind", &rollback);
             }
             return Err(error);
         }
@@ -688,5 +696,9 @@ mod tests {
             hyprland_modifiers_from_mask(77).unwrap(),
             "CTRL ALT SHIFT SUPER"
         );
+        // SUPER + SHIFT (65) must not abort; unknown high bits are ignored.
+        assert_eq!(hyprland_modifiers_from_mask(65).unwrap(), "SHIFT SUPER");
+        assert_eq!(hyprland_unbind_spec("", "F12"), "F12");
+        assert_eq!(hyprland_unbind_spec("CTRL", "Space"), "CTRL,Space");
     }
 }

@@ -4,13 +4,15 @@ fn normalized_trigger(value: &str) -> String {
     let trimmed = value
         .trim()
         .trim_matches(|c: char| matches!(c, '.' | ',' | '!' | '?' | ':' | ';' | '"' | '\''));
-    trimmed
+    // Lowercase before stripping the spoken "snippet" prefix so STT capitalization
+    // ("Snippet my signature.") still expands the macro.
+    let lowered = trimmed.to_lowercase();
+    lowered
         .strip_prefix("snippet ")
-        .unwrap_or(trimmed)
+        .unwrap_or(lowered.as_str())
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
-        .to_lowercase()
 }
 
 /// Expand only a complete utterance. This keeps ordinary prose from accidentally
@@ -45,6 +47,10 @@ mod tests {
         );
         assert_eq!(
             expand_snippet("snippet my signature", &snippets()),
+            Some("Best,\nAveek")
+        );
+        assert_eq!(
+            expand_snippet("Snippet my signature.", &snippets()),
             Some("Best,\nAveek")
         );
     }

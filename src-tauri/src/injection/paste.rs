@@ -36,18 +36,31 @@ pub fn tool_exists(bin: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn inject_log_path() -> std::path::PathBuf {
+    // Per-user path avoids multi-user /tmp ownership collisions (EACCES).
+    let mut path = std::env::temp_dir();
+    let user = std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_else(|_| format!("uid-{}", std::process::id()));
+    path.push(format!("oto-inject-{user}.log"));
+    path
+}
+
 fn inject_log(message: &str) {
     // GUI launches often discard stderr; keep a small on-disk trail for diagnosis.
+    let path = inject_log_path();
+    // Soft rotation so the diagnostic log cannot grow without bound.
+    if let Ok(meta) = std::fs::metadata(&path) {
+        if meta.len() > 512 * 1024 {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
-        .open("/tmp/oto-inject.log")
+        .open(&path)
     {
-        let _ = writeln!(
-            file,
-            "{} {message}",
-            chrono_lite_timestamp()
-        );
+        let _ = writeln!(file, "{} {message}", chrono_lite_timestamp());
     }
     eprintln!("oto injection: {message}");
 }
@@ -212,29 +225,113 @@ fn paste_with_ydotool() -> OtoResult<()> {
     run_ok(command, "ydotool paste")
 }
 
-fn text_without_line_actions(text: &str) -> String {
-    text.chars()
-        .map(|character| match character {
-            '\r' | '\n' | '\u{000b}' | '\u{000c}' | '\u{0085}' | '\u{2028}' | '\u{2029}' => ' ',
-            other => other,
-        })
+/// Normalize line endings and strip control characters that typing tools treat
+/// as accidental key actions, while preserving intentional newlines as `\n`.
+fn normalize_typed_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(character) = chars.next() {
+        match character {
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                out.push('\n');
+            }
+            '\n' => out.push('\n'),
+            // Vertical tab / form feed / NEL / line & paragraph separators → newline.
+            '\u{000b}' | '\u{000c}' | '\u{0085}' | '\u{2028}' | '\u{2029}' => out.push('\n'),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// Split into lines for virtual-keyboard tools that need explicit Return between rows.
+fn typed_lines(text: &str) -> Vec<String> {
+    normalize_typed_text(text)
+        .split('\n')
+        .map(|line| line.to_string())
         .collect()
 }
 
 fn wtype_text_command(text: &str) -> Command {
     let mut command = Command::new("wtype");
-    command.arg("--").arg(text_without_line_actions(text));
+    let lines = typed_lines(text);
+    if lines.is_empty() {
+        command.arg("--").arg("");
+        return command;
+    }
+    for (index, line) in lines.iter().enumerate() {
+        if !line.is_empty() {
+            command.arg("--").arg(line);
+        }
+        if index + 1 < lines.len() {
+            command.args(["-k", "Return"]);
+        }
+    }
+    // Pure empty line with no trailing newline still needs a type arg for run_ok.
+    if lines.len() == 1 && lines[0].is_empty() {
+        command.arg("--").arg("");
+    }
     command
 }
 
-fn ydotool_text_command(text: &str) -> Command {
+fn ydotool_type_line_command(line: &str) -> Command {
     let mut command = Command::new("ydotool");
     // -e 0: type the transcript literally (escape sequences would mangle paths/code).
     // -d 12: slightly slower than default so busy apps do not drop key events.
     command
         .args(["type", "-e", "0", "-d", "12", "--"])
-        .arg(text_without_line_actions(text));
+        .arg(line);
     command
+}
+
+fn ydotool_return_command() -> Command {
+    let mut command = Command::new("ydotool");
+    // KEY_ENTER = 28
+    command.args(["key", "28:1", "28:0"]);
+    command
+}
+
+fn xdotool_type_line_command(line: &str) -> Command {
+    let mut command = Command::new("xdotool");
+    command
+        .args(["type", "--clearmodifiers", "--"])
+        .arg(line);
+    command
+}
+
+fn xdotool_return_command() -> Command {
+    let mut command = Command::new("xdotool");
+    command.args(["key", "Return"]);
+    command
+}
+
+fn type_lines_with_ydotool(text: &str) -> OtoResult<()> {
+    let lines = typed_lines(text);
+    for (index, line) in lines.iter().enumerate() {
+        if !line.is_empty() {
+            run_ok(ydotool_type_line_command(line), "ydotool type")?;
+        }
+        if index + 1 < lines.len() {
+            run_ok(ydotool_return_command(), "ydotool Return")?;
+        }
+    }
+    Ok(())
+}
+
+fn type_lines_with_xdotool(text: &str) -> OtoResult<()> {
+    let lines = typed_lines(text);
+    for (index, line) in lines.iter().enumerate() {
+        if !line.is_empty() {
+            run_ok(xdotool_type_line_command(line), "xdotool type")?;
+        }
+        if index + 1 < lines.len() {
+            run_ok(xdotool_return_command(), "xdotool Return")?;
+        }
+    }
+    Ok(())
 }
 
 /// Type text through a virtual keyboard. This mirrors the reliable Hyprland
@@ -257,7 +354,7 @@ pub fn simulate_type(text: &str) -> OtoResult<()> {
         SessionKind::Wayland => {
             let mut failures = Vec::new();
             if ydotool_ready() {
-                match run_ok(ydotool_text_command(text), "ydotool type") {
+                match type_lines_with_ydotool(text) {
                     Ok(()) => return Ok(()),
                     Err(error) => failures.push(error.to_string()),
                 }
@@ -278,11 +375,7 @@ pub fn simulate_type(text: &str) -> OtoResult<()> {
         }
         SessionKind::X11 | SessionKind::Unknown => {
             if tool_exists("xdotool") {
-                let mut command = Command::new("xdotool");
-                command
-                    .args(["type", "--clearmodifiers", "--"])
-                    .arg(text_without_line_actions(text));
-                return run_ok(command, "xdotool type");
+                return type_lines_with_xdotool(text);
             }
             if tool_exists("wtype") {
                 return run_ok(wtype_text_command(text), "wtype text");
@@ -429,15 +522,18 @@ mod tests {
     }
 
     #[test]
-    fn direct_typing_commands_use_literal_text_after_double_dash() {
+    fn direct_typing_commands_preserve_newlines_as_return() {
         let wtype = wtype_text_command("hello\nworld");
         let wtype_args: Vec<_> = wtype
             .get_args()
             .map(|arg| arg.to_string_lossy().into_owned())
             .collect();
-        assert_eq!(wtype_args, ["--", "hello world"]);
+        assert_eq!(
+            wtype_args,
+            ["--", "hello", "-k", "Return", "--", "world"]
+        );
 
-        let ydotool = ydotool_text_command("-not-an-option");
+        let ydotool = ydotool_type_line_command("-not-an-option");
         let ydotool_args: Vec<_> = ydotool
             .get_args()
             .map(|arg| arg.to_string_lossy().into_owned())
@@ -446,5 +542,7 @@ mod tests {
             ydotool_args,
             ["type", "-e", "0", "-d", "12", "--", "-not-an-option"]
         );
+
+        assert_eq!(typed_lines("Best,\r\nAveek"), vec!["Best,", "Aveek"]);
     }
 }

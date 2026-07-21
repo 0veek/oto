@@ -91,11 +91,14 @@ fn decode_wav(audio_wav: &[u8]) -> OtoResult<Vec<f32>> {
     }
     let output_len = (mono.len() as u64 * 16_000 / spec.sample_rate as u64) as usize;
     let ratio = spec.sample_rate as f64 / 16_000.0;
+    let last = mono.len() - 1;
     let mut resampled = Vec::with_capacity(output_len);
     for output_index in 0..output_len {
         let source = output_index as f64 * ratio;
-        let left = source.floor() as usize;
-        let right = (left + 1).min(mono.len() - 1);
+        // Clamp both indices: floating-point rounding can push `source` to
+        // `mono.len()` at the final sample, which would panic on mono[left].
+        let left = (source.floor() as usize).min(last);
+        let right = (left + 1).min(last);
         let fraction = (source - left as f64) as f32;
         resampled.push(mono[left] * (1.0 - fraction) + mono[right] * fraction);
     }

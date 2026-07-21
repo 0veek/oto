@@ -101,15 +101,22 @@ impl AudioRecorder {
         let samples = Arc::new(Mutex::new(Vec::<i16>::new()));
         let err_fn = |err| eprintln!("audio input stream error: {err}");
 
+        // Carry incomplete multi-channel frames across callbacks so we never
+        // silently drop `data.len() % channels` trailing samples.
+        let remainder_f32 = Arc::new(Mutex::new(Vec::<f32>::new()));
+        let remainder_i16 = Arc::new(Mutex::new(Vec::<i16>::new()));
+        let remainder_u16 = Arc::new(Mutex::new(Vec::<u16>::new()));
+
         let stream = match sample_format {
             SampleFormat::F32 => {
                 let samples_cb = Arc::clone(&samples);
+                let remainder = Arc::clone(&remainder_f32);
                 let app = app.clone();
                 device
                     .build_input_stream(
                         config,
                         move |data: &[f32], _| {
-                            process_f32(data, channels, &samples_cb, &app);
+                            process_f32(data, channels, &samples_cb, &remainder, &app);
                         },
                         err_fn,
                         None,
@@ -118,12 +125,13 @@ impl AudioRecorder {
             }
             SampleFormat::I16 => {
                 let samples_cb = Arc::clone(&samples);
+                let remainder = Arc::clone(&remainder_i16);
                 let app = app.clone();
                 device
                     .build_input_stream(
                         config,
                         move |data: &[i16], _| {
-                            process_i16(data, channels, &samples_cb, &app);
+                            process_i16(data, channels, &samples_cb, &remainder, &app);
                         },
                         err_fn,
                         None,
@@ -132,12 +140,13 @@ impl AudioRecorder {
             }
             SampleFormat::U16 => {
                 let samples_cb = Arc::clone(&samples);
+                let remainder = Arc::clone(&remainder_u16);
                 let app = app.clone();
                 device
                     .build_input_stream(
                         config,
                         move |data: &[u16], _| {
-                            process_u16(data, channels, &samples_cb, &app);
+                            process_u16(data, channels, &samples_cb, &remainder, &app);
                         },
                         err_fn,
                         None,
@@ -205,55 +214,100 @@ fn emit_level(app: &AppHandle, samples: &[i16]) {
 }
 
 /// Convert interleaved multi-channel frames to mono i16, append, emit level.
-fn process_f32(data: &[f32], channels: u16, samples: &Arc<Mutex<Vec<i16>>>, app: &AppHandle) {
+fn process_f32(
+    data: &[f32],
+    channels: u16,
+    samples: &Arc<Mutex<Vec<i16>>>,
+    remainder: &Arc<Mutex<Vec<f32>>>,
+    app: &AppHandle,
+) {
     let ch = channels.max(1) as usize;
-    let mut chunk = Vec::with_capacity(data.len() / ch);
+    let mut pending = match remainder.lock() {
+        Ok(guard) => guard,
+        Err(_) => return,
+    };
+    pending.extend_from_slice(data);
+    let usable = (pending.len() / ch) * ch;
+    let frames = &pending[..usable];
+    let mut chunk = Vec::with_capacity(usable / ch);
     if ch == 1 {
-        for &s in data {
+        for &s in frames {
             chunk.push(f32_to_i16(s));
         }
     } else {
-        for frame in data.chunks_exact(ch) {
+        for frame in frames.chunks_exact(ch) {
             let sum: f32 = frame.iter().sum();
             chunk.push(f32_to_i16(sum / ch as f32));
         }
     }
+    pending.drain(..usable);
+    drop(pending);
     emit_level(app, &chunk);
     if let Ok(mut buf) = samples.lock() {
         buf.extend_from_slice(&chunk);
     }
 }
 
-fn process_i16(data: &[i16], channels: u16, samples: &Arc<Mutex<Vec<i16>>>, app: &AppHandle) {
+fn process_i16(
+    data: &[i16],
+    channels: u16,
+    samples: &Arc<Mutex<Vec<i16>>>,
+    remainder: &Arc<Mutex<Vec<i16>>>,
+    app: &AppHandle,
+) {
     let ch = channels.max(1) as usize;
-    let mut chunk = Vec::with_capacity(data.len() / ch);
+    let mut pending = match remainder.lock() {
+        Ok(guard) => guard,
+        Err(_) => return,
+    };
+    pending.extend_from_slice(data);
+    let usable = (pending.len() / ch) * ch;
+    let frames = &pending[..usable];
+    let mut chunk = Vec::with_capacity(usable / ch);
     if ch == 1 {
-        chunk.extend_from_slice(data);
+        chunk.extend_from_slice(frames);
     } else {
-        for frame in data.chunks_exact(ch) {
+        for frame in frames.chunks_exact(ch) {
             let sum: i32 = frame.iter().map(|&s| s as i32).sum();
             chunk.push((sum / ch as i32) as i16);
         }
     }
+    pending.drain(..usable);
+    drop(pending);
     emit_level(app, &chunk);
     if let Ok(mut buf) = samples.lock() {
         buf.extend_from_slice(&chunk);
     }
 }
 
-fn process_u16(data: &[u16], channels: u16, samples: &Arc<Mutex<Vec<i16>>>, app: &AppHandle) {
+fn process_u16(
+    data: &[u16],
+    channels: u16,
+    samples: &Arc<Mutex<Vec<i16>>>,
+    remainder: &Arc<Mutex<Vec<u16>>>,
+    app: &AppHandle,
+) {
     let ch = channels.max(1) as usize;
-    let mut chunk = Vec::with_capacity(data.len() / ch);
+    let mut pending = match remainder.lock() {
+        Ok(guard) => guard,
+        Err(_) => return,
+    };
+    pending.extend_from_slice(data);
+    let usable = (pending.len() / ch) * ch;
+    let frames = &pending[..usable];
+    let mut chunk = Vec::with_capacity(usable / ch);
     if ch == 1 {
-        for &s in data {
+        for &s in frames {
             chunk.push(u16_to_i16(s));
         }
     } else {
-        for frame in data.chunks_exact(ch) {
+        for frame in frames.chunks_exact(ch) {
             let sum: i32 = frame.iter().map(|&s| u16_to_i16(s) as i32).sum();
             chunk.push((sum / ch as i32) as i16);
         }
     }
+    pending.drain(..usable);
+    drop(pending);
     emit_level(app, &chunk);
     if let Ok(mut buf) = samples.lock() {
         buf.extend_from_slice(&chunk);

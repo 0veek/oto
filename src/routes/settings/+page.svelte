@@ -53,53 +53,63 @@
     "injection",
   ];
 
+  function browserPreviewDefaults(): AppConfig {
+    return {
+      provider_preset: "groq",
+      base_url: "https://api.groq.com/openai/v1",
+      stt_model: "whisper-large-v3",
+      polish_model: "llama-3.1-8b-instant",
+      polish_enabled: true,
+      temperature: 0.2,
+      tone_hint: "",
+      hotkey: "Ctrl+Super+Space",
+      language: null,
+      dictionary: [],
+      injection_mode: "auto",
+      idle_behavior: "hide",
+      overlay_x: null,
+      overlay_y: null,
+      stt_backend: "cloud",
+      local_whisper_model_path: "",
+      vocabulary_boost: true,
+      snippets: [],
+      styles: [
+        { id: "professional", name: "Professional", prompt: "Professional, clear, and concise." },
+        { id: "casual", name: "Casual", prompt: "Natural and friendly." },
+      ],
+      active_style_id: null,
+      history_enabled: true,
+      history_limit: 100,
+      streaming_enabled: false,
+      theme: "midnight",
+      reduce_motion: false,
+      font_scale: 1,
+      custom_providers: [],
+      active_custom_provider_id: null,
+      sync: { enabled: false, endpoint: "" },
+    };
+  }
+
   async function loadConfig() {
     loadError = null;
     try {
       config = await invoke<AppConfig>("get_config");
     } catch (e) {
-      // Browser/dev without Tauri: keep page usable for layout checks
+      // Browser/dev without Tauri: keep page usable for layout checks only.
+      // Never install defaults into a live Tauri session — Save would wipe disk config.
       const browserPreview = ["http:", "https:"].includes(window.location.protocol);
-      loadError = browserPreview ? null : String(e);
-      config = {
-        provider_preset: "groq",
-        base_url: "https://api.groq.com/openai/v1",
-        stt_model: "whisper-large-v3",
-        polish_model: "llama-3.1-8b-instant",
-        polish_enabled: true,
-        temperature: 0.2,
-        tone_hint: "",
-        hotkey: "Ctrl+Super+Space",
-        language: null,
-        dictionary: [],
-        injection_mode: "auto",
-        idle_behavior: "hide",
-        overlay_x: null,
-        overlay_y: null,
-        stt_backend: "cloud",
-        local_whisper_model_path: "",
-        vocabulary_boost: true,
-        snippets: [],
-        styles: [
-          { id: "professional", name: "Professional", prompt: "Professional, clear, and concise." },
-          { id: "casual", name: "Casual", prompt: "Natural and friendly." },
-        ],
-        active_style_id: null,
-        history_enabled: true,
-        history_limit: 100,
-        streaming_enabled: false,
-        theme: "midnight",
-        reduce_motion: false,
-        font_scale: 1,
-        custom_providers: [],
-        active_custom_provider_id: null,
-        sync: { enabled: false, endpoint: "" },
-      };
+      if (browserPreview) {
+        loadError = null;
+        config = browserPreviewDefaults();
+      } else {
+        loadError = String(e);
+        config = null;
+      }
     }
   }
 
   async function saveConfig() {
-    if (!config || saving) return;
+    if (!config || saving || loadError) return;
     saving = true;
     saveStatus = null;
     try {
@@ -120,7 +130,19 @@
         if (saveStatus === "Saved") saveStatus = null;
       }, 2000);
     } catch (e) {
-      saveStatus = `Save failed: ${String(e)}`;
+      const message = String(e);
+      // Hotkey / portal registration failures leave the draft invalid — restore
+      // the last good backend config so the UI does not keep a broken chord.
+      try {
+        config = await invoke<AppConfig>("get_config");
+        if (message.toLowerCase().includes("hotkey") || message.toLowerCase().includes("portal") || message.toLowerCase().includes("shortcut")) {
+          saveStatus = `Hotkey not registered: ${message}. Restored previous shortcut.`;
+        } else {
+          saveStatus = `Save failed: ${message}. Reloaded last saved settings.`;
+        }
+      } catch {
+        saveStatus = `Save failed: ${message}`;
+      }
     } finally {
       saving = false;
     }
@@ -148,8 +170,21 @@
 </script>
 
 {#if !config}
-  <div class="flex h-screen items-center justify-center bg-slate-950 text-slate-400">
-    Loading settings…
+  <div class="flex h-screen flex-col items-center justify-center gap-3 bg-slate-950 px-6 text-center text-slate-400">
+    {#if loadError}
+      <p class="max-w-md text-sm text-amber-100/90">
+        Could not load settings from Oto ({loadError}). Your on-disk configuration was not modified.
+      </p>
+      <button
+        type="button"
+        class="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10"
+        onclick={() => void loadConfig()}
+      >
+        Retry
+      </button>
+    {:else}
+      Loading settings…
+    {/if}
   </div>
 {:else}
   <SettingsShell
@@ -162,13 +197,6 @@
     }}
   >
     <div class="settings-stage">
-      {#if loadError}
-        <div
-          class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90"
-        >
-          Could not load config from Tauri ({loadError}). Showing defaults for UI preview.
-        </div>
-      {/if}
 
       {#if active === "providers"}
         <ProvidersSection bind:config />

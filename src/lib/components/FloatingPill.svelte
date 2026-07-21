@@ -154,6 +154,14 @@
     color: var(--color-overlay-ink);
     font-family: var(--font-body);
     user-select: none;
+    transition:
+      width var(--dur-short, 180ms) var(--ease-out, ease),
+      height var(--dur-short, 180ms) var(--ease-out, ease);
+  }
+
+  /* Minimal idle mode: compact dormant capsule instead of full status bar width. */
+  .oto-pill.state-idle {
+    width: min(2.75rem, calc(100vw - 0.5rem));
   }
 
   .oto-pill__rail {
@@ -171,6 +179,16 @@
       inset 0 1px 0 oklch(100% 0 0 / 0.055);
     backdrop-filter: blur(18px) saturate(120%);
     box-sizing: border-box;
+  }
+
+  .oto-pill.state-idle .oto-pill__rail {
+    justify-content: center;
+    gap: 0;
+    padding: 0.3125rem;
+  }
+
+  .oto-pill.state-idle .oto-pill__label {
+    display: none;
   }
 
   .oto-pill__status-mark {

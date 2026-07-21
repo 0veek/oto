@@ -51,8 +51,12 @@ fn merge_by_id<T, F>(local: &mut Vec<T>, remote: Vec<T>, id: F)
 where
     F: Fn(&T) -> &str,
 {
+    // Remote wins on id collision so edits synced from another machine apply.
+    // Local-only items (ids not present remotely) are kept.
     for value in remote {
-        if !local.iter().any(|existing| id(existing) == id(&value)) {
+        if let Some(existing) = local.iter_mut().find(|existing| id(existing) == id(&value)) {
+            *existing = value;
+        } else {
             local.push(value);
         }
     }
@@ -102,7 +106,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn merge_keeps_local_conflicts_and_adds_remote_items() {
+    fn merge_applies_remote_edits_and_adds_remote_items() {
         let mut config = AppConfig {
             dictionary: vec!["Oto".into()],
             snippets: vec![Snippet {
@@ -137,6 +141,8 @@ mod tests {
         );
         assert_eq!(config.dictionary, vec!["Oto", "Tauri"]);
         assert_eq!(config.snippets.len(), 2);
-        assert_eq!(config.snippets[0].trigger, "local");
+        assert_eq!(config.snippets[0].trigger, "remote");
+        assert_eq!(config.snippets[0].expansion, "remote");
+        assert_eq!(config.snippets[1].id, "new");
     }
 }

@@ -42,10 +42,21 @@ pub async fn inject_text(text: &str, mode: &InjectionMode) -> OtoResult<InjectRe
 
 fn append_inject_log(message: &str) {
     use std::io::Write;
+    // Per-user path avoids multi-user /tmp ownership collisions (EACCES).
+    let mut path = std::env::temp_dir();
+    let user = std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_else(|_| format!("uid-{}", std::process::id()));
+    path.push(format!("oto-inject-{user}.log"));
+    if let Ok(meta) = std::fs::metadata(&path) {
+        if meta.len() > 512 * 1024 {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
     if let Ok(mut file) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open("/tmp/oto-inject.log")
+        .open(&path)
     {
         let _ = writeln!(file, "{message}");
     }
