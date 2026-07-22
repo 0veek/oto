@@ -76,22 +76,110 @@ Install the tools relevant to your session:
 | Environment | Required or recommended components |
 | --- | --- |
 | Wayland | `xdg-desktop-portal` plus the portal backend for your compositor |
+| GNOME Wayland | `xdg-desktop-portal-gnome` (usually installed with GNOME) |
 | Hyprland | `xdg-desktop-portal-hyprland`; Oto creates a runtime `global` bind |
-| Wayland insertion | `ydotool` with its **user** daemon (`ydotoold`) and/or `wtype` |
+| Wayland insertion | `ydotool` with a **running** user daemon (`ydotoold`); optional `wtype` fallback |
 | X11 insertion | `xdotool` |
 
-Oto can still leave the result on the clipboard when no supported paste tool is available.
+Oto can still leave the result on the clipboard when no supported paste tool is available. For a deeper Wayland/GNOME error catalog, see [`errorfix.md`](errorfix.md).
 
-Installing `ydotool` alone is not enough: the daemon must be running. On Arch and most distros it is a **systemd user unit** (not a system unit), so use `--user`:
+### Wayland setup (GNOME, Hyprland, and others)
+
+On Wayland, Oto cannot type into other apps by itself. Insertion uses **AT-SPI** when possible, then **clipboard + simulated Ctrl+V**, then **direct typing**. The last two steps need `ydotool` (preferred) or `wtype`.
+
+`ydotool` injects keys through `/dev/uinput`. That works on **both** Wayland and X11; Wayland is not the reason the daemon fails. The usual failure is permissions or starting the wrong systemd unit.
+
+#### 1. Install packages
+
+```bash
+# Arch
+sudo pacman -S --needed ydotool wtype wl-clipboard xdg-desktop-portal
+
+# Fedora
+sudo dnf install ydotool wtype wl-clipboard xdg-desktop-portal
+
+# Debian / Ubuntu
+sudo apt install ydotool wtype wl-clipboard xdg-desktop-portal
+```
+
+On GNOME, also keep `xdg-desktop-portal-gnome` installed. On Hyprland, install and run `xdg-desktop-portal-hyprland`.
+
+#### 2. Join the `input` group (required for `ydotoold`)
+
+`/dev/uinput` is typically `root:input` mode `0660`. Without the `input` group, the daemon exits immediately with:
+
+```text
+failed to open uinput device: Permission denied
+```
+
+```bash
+sudo usermod -aG input "$USER"
+```
+
+Then **fully log out of the desktop session and log back in** (or reboot). A new terminal alone is not enough—the graphical session must pick up the new group.
+
+Confirm after login:
+
+```bash
+groups | grep -w input    # must list "input"
+```
+
+#### 3. Enable the **user** systemd unit
+
+The package ships a **user** unit, not a system unit. Package install does **not** start the daemon by itself.
 
 ```bash
 systemctl --user enable --now ydotool.service
-systemctl --user status ydotool.service   # should be active
+systemctl --user status ydotool.service   # must be: active (running)
 ```
 
-Do not run `systemctl start ydotool.service` without `--user` — that looks for a system unit and fails with “Unit ydotool.service not found.” The unit name is one word: `ydotool.service` (no space after the dot).
+Rules of thumb:
 
-Your user should be in the `input` group so `ydotoold` can open `/dev/uinput` (log out and back in after `usermod -aG input $USER` if needed).
+- Always use `systemctl --user … ydotool.service`.
+- Do **not** run `systemctl start ydotool.service` without `--user` — that looks for a system unit and fails with “Unit ydotool.service not found.”
+- The unit name is one word: `ydotool.service` (no space after the dot).
+
+If the unit previously hit a restart limit after permission errors:
+
+```bash
+systemctl --user reset-failed ydotool.service
+systemctl --user enable --now ydotool.service
+```
+
+#### 4. Verify the socket and typing
+
+```bash
+# Socket (path may vary; Oto also checks YDOTOOL_SOCKET and /tmp)
+ls -la "$XDG_RUNTIME_DIR/.ydotool_socket"
+
+# Focus a text field in another app (gedit, browser, etc.), then:
+ydotool type -- 'hello from ydotool '
+```
+
+If that types into the focused field, Oto can use the same path for paste and direct type. Restart Oto after the daemon is healthy.
+
+#### 5. Optional: `wtype` fallback
+
+Install `wtype` as a secondary tool. On many compositors (including GNOME), `wtype` can exit successfully without inserting text; a healthy `ydotoold` is the reliable path.
+
+#### Common Wayland mistakes
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `enable --now` “works” but status is **failed** | No `input` group → uinput denied | `usermod -aG input`, full re-login, restart unit |
+| `Unit ydotool.service not found` | Started as a **system** unit | Use `systemctl --user` |
+| `start-limit-hit` | Crash loop (usually permissions) | Fix group, then `reset-failed` and start again |
+| Transcript OK, text not inserted | Daemon down / no `wtype` → clipboard-only | Fix `ydotoold`; check `/tmp/oto-inject-$USER.log` |
+| Keys land in the wrong window (GNOME) | Focus changed during Processing | Keep the target field focused; GNOME has no Hyprland-style restore |
+| Global shortcut does nothing | Portal bind missing/denied | Restart `xdg-desktop-portal` (+ compositor backend); use tray Start/Stop |
+
+Diagnostic log written by the injector:
+
+```bash
+tail -n 50 "/tmp/oto-inject-${USER}.log"
+```
+
+Look for `ydotool_ready=false`, `result=ClipboardOnly`, or paste/type failures.
 
 On Arch Linux, a typical development setup is:
 
@@ -99,7 +187,8 @@ On Arch Linux, a typical development setup is:
 sudo pacman -S --needed base-devel webkit2gtk-4.1 libayatana-appindicator \
   alsa-lib libsecret nodejs npm rust clang cmake patchelf wtype ydotool wl-clipboard
 
-# Required for reliable Wayland typing (ydotool first in Oto's chain)
+sudo usermod -aG input "$USER"
+# log out and back in, then:
 systemctl --user enable --now ydotool.service
 ```
 
@@ -205,13 +294,9 @@ The four modes are:
 
 Oto first searches the AT-SPI accessibility tree for the focused editable object and replaces its selection or inserts at its caret. **Auto prefers clipboard + paste** so the full transcript lands in one shot instead of key-by-key typing (which is slow with `ydotool type`). If paste tools fail, it falls back to direct typing. Wayland typing order follows [Hyprvoice](https://github.com/leonardotrapani/hyprvoice): `ydotool` first, then `wtype`, with line terminators converted to spaces so generated Enter keys cannot submit a form. On X11, direct typing uses `xdotool --clearmodifiers`.
 
-On Hyprland (and other Wayland compositors), prefer a running `ydotoold` over `wtype` alone. `wtype` can exit successfully without inserting into many focused apps; `ydotool` injects via `/dev/uinput` and is more reliable. Enable the daemon once:
+On Wayland, prefer a running `ydotoold` over `wtype` alone. `wtype` can exit successfully without inserting into many focused apps; `ydotool` injects via `/dev/uinput` and is more reliable. Follow the full [Wayland setup](#wayland-setup-gnome-hyprland-and-others) above—**enabling the unit is not enough** if your user is not in the `input` group.
 
-```bash
-systemctl --user enable --now ydotool.service
-```
-
-Oto also waits briefly after push-to-talk release before generating input, releases leftover modifiers, and restores the Hyprland focus target captured when recording started so keys land in the app you were dictating into. Some sandboxed, privileged, terminal, or custom-rendered applications may still reject accessibility and synthetic input; use the insertion test to verify your target application.
+Oto also waits briefly after push-to-talk release before generating input and releases leftover modifiers. On **Hyprland**, it restores the focus target captured when recording started so keys land in the app you were dictating into. On **GNOME Wayland**, keep the target field focused through Processing; there is no compositor-side focus restore. Some sandboxed, privileged, terminal, or custom-rendered applications may still reject accessibility and synthetic input; use **Injection → Test insertion** to verify your target application.
 
 ## Development
 
@@ -315,22 +400,48 @@ Review the policies of the provider you select. Use a trusted custom endpoint if
 
 ### Text is transcribed (overlay works) but not inserted
 
-- On Wayland, install `ydotool` and **start its user daemon** (package install does not enable it by itself):
+This almost always means the inject chain fell through to **clipboard-only**. Transcripts are already on the clipboard—paste with Ctrl+V until tools work.
 
-  ```bash
-  systemctl --user enable --now ydotool.service
-  systemctl --user status ydotool.service
-  ydotool type -- 'hello '   # focus a text field first; should type into it
-  ```
+1. **Check the inject log**
 
-  Use `systemctl --user`, not system-level `systemctl`. A missing unit usually means the `--user` flag was omitted.
+   ```bash
+   tail -n 50 "/tmp/oto-inject-${USER}.log"
+   ```
 
-- Optionally install `wtype` as a fallback; on Hyprland, `ydotool` is the reliable path.
-- On X11, install `xdotool`.
-- Start with **Auto** and run **Test insertion** with another editable application focused (not Oto Settings). Try **Direct type** for clipboard-hostile apps and **Clipboard + paste** for apps where typing tools are unreliable.
-- Keep focus on the target text field while holding the push-to-talk shortcut; Oto restores that Hyprland window before typing when possible.
-- Some applications block synthetic input; use clipboard-only mode there.
-- `ydotool` needs `ydotoold` running and permission to open `/dev/uinput` (typically membership in the `input` group).
+   If you see `ydotool_ready=false`, `wtype=false`, or `result=ClipboardOnly`, the daemon or tools are not usable.
+
+2. **Wayland: fix `ydotoold` (most common)**
+
+   Follow [Wayland setup](#wayland-setup-gnome-hyprland-and-others). In short:
+
+   ```bash
+   # Permission to open /dev/uinput — required; re-login after this
+   sudo usermod -aG input "$USER"
+   # log out of GNOME/Hyprland completely, log back in, then:
+
+   groups | grep -w input
+   systemctl --user reset-failed ydotool.service
+   systemctl --user enable --now ydotool.service
+   systemctl --user status ydotool.service    # active (running)
+
+   ls -la "$XDG_RUNTIME_DIR/.ydotool_socket"
+   # focus a text field in another app:
+   ydotool type -- 'hello '
+   ```
+
+   **`systemctl --user enable --now` alone is not enough** if `input` is missing. Journal will show:
+
+   ```text
+   failed to open uinput device: Permission denied
+   ```
+
+   Then systemd marks the unit `failed` / `start-limit-hit` even though the service is “enabled.”
+
+3. **Optional fallback:** install `wtype`. Prefer a healthy `ydotoold` on GNOME and Hyprland.
+4. **X11:** install `xdotool`.
+5. Start with **Auto** and run **Injection → Test insertion** with another editable app focused (**not** Oto Settings). Try **Direct type** or **Clipboard + paste** if Auto is flaky.
+6. Keep focus on the target field for the whole hold → process cycle. On Hyprland, Oto can restore the captured window; on GNOME, it cannot.
+7. Some apps block synthetic input—use **Clipboard only** there and paste manually.
 
 ### API-key or keyring errors
 
