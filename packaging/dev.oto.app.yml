@@ -26,7 +26,11 @@ modules:
       - install -Dm755 usr/bin/oto /app/bin/oto
       - install -Dm644 dev.oto.app.desktop /app/share/applications/dev.oto.app.desktop
       - install -Dm644 dev.oto.app.metainfo.xml /app/share/metainfo/dev.oto.app.metainfo.xml
-      - install -Dm644 icon.png /app/share/icons/hicolor/128x128/apps/dev.oto.app.png
+      # Install multiple hicolor sizes so HiDPI panels don't upscale a tiny PNG.
+      - install -Dm644 icon-32.png /app/share/icons/hicolor/32x32/apps/dev.oto.app.png
+      - install -Dm644 icon-128.png /app/share/icons/hicolor/128x128/apps/dev.oto.app.png
+      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/dev.oto.app.png
+      - install -Dm644 icon-512.png /app/share/icons/hicolor/512x512/apps/dev.oto.app.png
     sources:
       - type: file
         path: ../src-tauri/target/release/bundle/deb/Oto_0.1.0_amd64.deb
@@ -36,6 +40,15 @@ modules:
       - type: file
         path: dev.oto.app.metainfo.xml
       - type: file
+        path: ../src-tauri/icons/32x32.png
+        dest-filename: icon-32.png
+      - type: file
         path: ../src-tauri/icons/128x128.png
-        dest-filename: icon.png
+        dest-filename: icon-128.png
+      - type: file
+        path: ../src-tauri/icons/256x256.png
+        dest-filename: icon-256.png
+      - type: file
+        path: ../src-tauri/icons/512x512.png
+        dest-filename: icon-512.png
 
