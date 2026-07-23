@@ -12,7 +12,7 @@ export type PipelineEvent =
   | { type: "partial"; text: string }
   | { type: "error"; message: string };
 
-export type ProviderPreset = "open_ai" | "groq" | "open_router" | "custom";
+export type ProviderPreset = "open_ai" | "groq" | "open_router" | "deepgram" | "custom";
 export type InjectionMode = "auto" | "direct_type" | "clipboard_paste" | "clipboard_only";
 export type IdleBehavior = "hide" | "minimal";
 export type SttBackend = "cloud" | "local_whisper";

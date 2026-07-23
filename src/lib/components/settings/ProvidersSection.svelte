@@ -3,16 +3,38 @@
   import { IconChevronDown } from "@tabler/icons-svelte";
   import type { AppConfig, ProviderPreset, ProviderProfile } from "$lib/types";
 
-  const PRESET_DEFAULTS: Record<Exclude<ProviderPreset, "custom">, string> = {
-    open_ai: "https://api.openai.com/v1",
-    groq: "https://api.groq.com/openai/v1",
-    open_router: "https://openrouter.ai/api/v1",
+  const PRESET_DEFAULTS: Record<
+    Exclude<ProviderPreset, "custom">,
+    { base_url: string; stt_model: string; polish_model: string }
+  > = {
+    open_ai: {
+      base_url: "https://api.openai.com/v1",
+      stt_model: "whisper-1",
+      polish_model: "gpt-4o-mini",
+    },
+    groq: {
+      base_url: "https://api.groq.com/openai/v1",
+      stt_model: "whisper-large-v3",
+      polish_model: "llama-3.1-8b-instant",
+    },
+    open_router: {
+      base_url: "https://openrouter.ai/api/v1",
+      stt_model: "openai/whisper-1",
+      polish_model: "openai/gpt-4o-mini",
+    },
+    deepgram: {
+      base_url: "https://api.deepgram.com",
+      stt_model: "nova-3",
+      // Deepgram is STT-only; polish needs a separate OpenAI-compatible LLM.
+      polish_model: "",
+    },
   };
 
   const PRESET_OPTIONS: { value: ProviderPreset; label: string }[] = [
     { value: "open_ai", label: "OpenAI" },
     { value: "groq", label: "Groq" },
     { value: "open_router", label: "OpenRouter" },
+    { value: "deepgram", label: "Deepgram" },
     { value: "custom", label: "Custom" },
   ];
 
@@ -79,7 +101,14 @@
     const value = (event.target as HTMLSelectElement).value as ProviderPreset;
     config.provider_preset = value;
     if (value !== "custom") {
-      config.base_url = PRESET_DEFAULTS[value];
+      const defaults = PRESET_DEFAULTS[value];
+      config.base_url = defaults.base_url;
+      config.stt_model = defaults.stt_model;
+      config.polish_model = defaults.polish_model;
+      // Deepgram smart_format handles punctuation; LLM polish is not available on this API.
+      if (value === "deepgram") {
+        config.polish_enabled = false;
+      }
     }
     keyDraft = "";
     keyStatus = null;
@@ -140,7 +169,7 @@
   <header>
     <h2 class="text-xl font-semibold tracking-tight">Providers</h2>
     <p class="mt-1 text-sm text-slate-400">
-      Choose an OpenAI-compatible provider and store your API key in the OS keyring.
+      Choose a cloud STT provider and store your API key in the OS keyring. OpenAI, Groq, and OpenRouter also power optional LLM polish; Deepgram is speech-to-text only (Nova-3).
     </p>
   </header>
 
@@ -207,7 +236,11 @@
             bind:value={config.base_url}
           />
           <span class="provider-row__hint">
-            OpenAI-compatible API root (…/v1). Updated automatically for known presets.
+            {#if config.provider_preset === "deepgram"}
+              Deepgram API root (https://api.deepgram.com). Auth uses Token header, not Bearer.
+            {:else}
+              OpenAI-compatible API root (…/v1). Updated automatically for known presets.
+            {/if}
           </span>
         </span>
       </label>

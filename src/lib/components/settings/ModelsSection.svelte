@@ -100,8 +100,19 @@
       {:else}
         <label class="setting-field">
           <span class="setting-field__label">STT model</span>
-          <input class="font-mono" type="text" placeholder="whisper-large-v3" bind:value={config.stt_model} />
-          <span class="setting-field__hint">The model identifier accepted by your active provider.</span>
+          <input
+            class="font-mono"
+            type="text"
+            placeholder={config.provider_preset === "deepgram" ? "nova-3" : "whisper-large-v3"}
+            bind:value={config.stt_model}
+          />
+          <span class="setting-field__hint">
+            {#if config.provider_preset === "deepgram"}
+              Deepgram model id (default <span class="font-mono">nova-3</span>). Also accepts nova-3-medical, nova-2, etc.
+            {:else}
+              The model identifier accepted by your active provider.
+            {/if}
+          </span>
         </label>
       {/if}
 
@@ -145,9 +156,15 @@
       <label class="setting-row">
         <span class="setting-row__copy">
           <strong>Enable polish</strong>
-          <span>Refine grammar, punctuation, and tone before insertion.</span>
+          <span>
+            {#if config.provider_preset === "deepgram"}
+              Requires an OpenAI-compatible LLM. Deepgram is STT-only (Nova-3 includes smart formatting).
+            {:else}
+              Refine grammar, punctuation, and tone before insertion.
+            {/if}
+          </span>
         </span>
-        <input type="checkbox" bind:checked={config.polish_enabled} />
+        <input type="checkbox" bind:checked={config.polish_enabled} disabled={config.provider_preset === "deepgram"} />
       </label>
 
       <label class="setting-field" class:opacity-50={!config.polish_enabled}>

@@ -5,6 +5,8 @@ pub fn base_url_for(preset: &ProviderPreset) -> &'static str {
         ProviderPreset::OpenAi => "https://api.openai.com/v1",
         ProviderPreset::Groq => "https://api.groq.com/openai/v1",
         ProviderPreset::OpenRouter => "https://openrouter.ai/api/v1",
+        // Deepgram STT root (not OpenAI-compatible). Requests use `/v1/listen`.
+        ProviderPreset::Deepgram => "https://api.deepgram.com",
         ProviderPreset::Custom => "",
     }
 }
@@ -15,6 +17,8 @@ pub fn default_models(preset: &ProviderPreset) -> (&'static str, &'static str) {
         ProviderPreset::OpenAi => ("whisper-1", "gpt-4o-mini"),
         ProviderPreset::Groq => ("whisper-large-v3", "llama-3.1-8b-instant"),
         ProviderPreset::OpenRouter => ("openai/whisper-1", "openai/gpt-4o-mini"),
+        // Deepgram is STT-only; polish requires a separate OpenAI-compatible LLM.
+        ProviderPreset::Deepgram => ("nova-3", ""),
         ProviderPreset::Custom => ("whisper-1", "gpt-4o-mini"),
     }
 }
@@ -24,6 +28,7 @@ pub fn preset_account(preset: &ProviderPreset) -> &'static str {
         ProviderPreset::OpenAi => "openai",
         ProviderPreset::Groq => "groq",
         ProviderPreset::OpenRouter => "openrouter",
+        ProviderPreset::Deepgram => "deepgram",
         ProviderPreset::Custom => "custom",
     }
 }
@@ -60,5 +65,17 @@ mod tests {
         let (stt, polish) = default_models(&ProviderPreset::Groq);
         assert_eq!(stt, "whisper-large-v3");
         assert_eq!(polish, "llama-3.1-8b-instant");
+    }
+
+    #[test]
+    fn deepgram_url_and_defaults() {
+        assert_eq!(
+            base_url_for(&ProviderPreset::Deepgram),
+            "https://api.deepgram.com"
+        );
+        let (stt, polish) = default_models(&ProviderPreset::Deepgram);
+        assert_eq!(stt, "nova-3");
+        assert!(polish.is_empty());
+        assert_eq!(preset_account(&ProviderPreset::Deepgram), "deepgram");
     }
 }

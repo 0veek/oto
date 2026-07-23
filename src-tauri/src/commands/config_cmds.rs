@@ -7,12 +7,7 @@ use crate::state::AppState;
 use tauri::{AppHandle, Manager};
 
 fn preset_account(p: &ProviderPreset) -> &'static str {
-    match p {
-        ProviderPreset::OpenAi => "openai",
-        ProviderPreset::Groq => "groq",
-        ProviderPreset::OpenRouter => "openrouter",
-        ProviderPreset::Custom => "custom",
-    }
+    crate::providers::presets::preset_account(p)
 }
 
 #[tauri::command]

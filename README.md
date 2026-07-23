@@ -25,12 +25,12 @@
 
 - Push-to-talk dictation with clear listening, processing, done, and error states.
 - Global shortcuts on X11 and Wayland, including XDG GlobalShortcuts and Hyprland support.
-- Cloud transcription through OpenAI-compatible APIs or offline transcription with `whisper-rs`.
+- Cloud transcription through Deepgram (Nova-3), OpenAI-compatible APIs, or offline transcription with `whisper-rs`.
 - Optional transcript cleanup with tone guidance, style presets, and protected vocabulary.
 - Exact-trigger voice snippets and select-and-rewrite Command Mode.
 - Layered text insertion through AT-SPI, virtual-keyboard typing, clipboard and paste, or clipboard-only fallback.
 - Optional, capped local history with copy and delete controls.
-- Provider profiles for OpenAI, Groq, OpenRouter, and compatible custom endpoints.
+- Provider profiles for Deepgram, OpenAI, Groq, OpenRouter, and compatible custom endpoints.
 - API keys stored in the operating system keyring, separate from the JSON configuration.
 - Configurable themes, text size, reduced motion, overlay behavior, and keyboard focus.
 - Explicit, user-controlled JSON sync for dictionary entries, snippets, and styles.
@@ -198,15 +198,21 @@ application-specific insertion failures, see the
 
 ### Providers and models
 
-Oto uses OpenAI-compatible endpoints for cloud transcription and optional
-transcript polishing.
+Oto supports Deepgram’s native listen API for speech-to-text, plus
+OpenAI-compatible endpoints for transcription and optional transcript polishing.
 
 | Preset | Base URL | Default transcription model | Default polish model |
 | --- | --- | --- | --- |
+| Deepgram | `https://api.deepgram.com` | `nova-3` | — (STT only; uses `smart_format`) |
 | OpenAI | `https://api.openai.com/v1` | `whisper-1` | `gpt-4o-mini` |
 | Groq | `https://api.groq.com/openai/v1` | `whisper-large-v3` | `llama-3.1-8b-instant` |
 | OpenRouter | `https://openrouter.ai/api/v1` | `openai/whisper-1` | `openai/gpt-4o-mini` |
 | Custom | User supplied | `whisper-1` | `gpt-4o-mini` |
+
+Deepgram keys use `Authorization: Token …` against `/v1/listen`. Dictionary terms
+map to Nova-3 [keyterm prompting](https://developers.deepgram.com/docs/keyterm).
+Polish and Command Mode need an OpenAI-compatible chat model; switch provider or
+use a custom profile if you need LLM post-processing.
 
 Provider capabilities and model identifiers can change independently of Oto.
 Confirm that a custom endpoint implements audio transcriptions and, when polish

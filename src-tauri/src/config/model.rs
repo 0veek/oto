@@ -6,6 +6,7 @@ pub enum ProviderPreset {
     OpenAi,
     Groq,
     OpenRouter,
+    Deepgram,
     Custom,
 }
 
