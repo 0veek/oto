@@ -121,6 +121,12 @@ pub fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Session / portal capability report for the Hotkeys settings panel.
+#[tauri::command]
+pub async fn get_hotkey_desktop_status() -> hotkeys::HotkeyDesktopStatus {
+    hotkeys::hotkey_desktop_status().await
+}
+
 /// Persist overlay window coordinates (physical pixels).
 #[tauri::command]
 pub fn set_overlay_position(x: i32, y: i32) -> Result<(), OtoError> {

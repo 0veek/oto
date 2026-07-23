@@ -1,11 +1,31 @@
 <script lang="ts">
-  import type { AppConfig } from "$lib/types";
+  import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import { IconAlertTriangle, IconKeyboard } from "@tabler/icons-svelte";
+  import type { AppConfig, HotkeyDesktopStatus } from "$lib/types";
 
   let {
     config = $bindable(),
   }: {
     config: AppConfig;
   } = $props();
+
+  let status = $state<HotkeyDesktopStatus | null>(null);
+  let statusError = $state<string | null>(null);
+
+  async function loadStatus() {
+    statusError = null;
+    try {
+      status = await invoke<HotkeyDesktopStatus>("get_hotkey_desktop_status");
+    } catch (error) {
+      status = null;
+      statusError = String(error);
+    }
+  }
+
+  onMount(() => {
+    void loadStatus();
+  });
 </script>
 
 <section class="space-y-6">
@@ -16,6 +36,77 @@
       Wayland uses the desktop GlobalShortcuts portal; X11 uses a native key grab.
     </p>
   </header>
+
+  {#if status?.warning}
+    <div
+      role="alert"
+      class="rounded-2xl border border-amber-400/35 bg-amber-400/10 px-5 py-4 text-sm leading-relaxed text-amber-50 shadow-xl backdrop-blur-xl"
+    >
+      <div class="flex items-start gap-3">
+        <span class="mt-0.5 shrink-0 text-amber-300">
+          <IconAlertTriangle aria-hidden="true" size={20} stroke={1.8} />
+        </span>
+        <div class="min-w-0 space-y-2">
+          <p class="font-semibold tracking-tight text-amber-100">
+            {#if status.is_cosmic}
+              Global push-to-talk is unavailable on COSMIC
+            {:else}
+              Global push-to-talk is unavailable on this desktop
+            {/if}
+          </p>
+          <p class="text-amber-50/90">{status.warning}</p>
+          <ul class="list-disc space-y-1 pl-4 text-amber-50/80">
+            <li>
+              Use tray → <strong class="text-amber-50">Start Listening</strong> /
+              <strong class="text-amber-50">Stop Listening</strong> for dictation.
+            </li>
+            {#if status.portal_hint}
+              <li>
+                Install <code class="rounded bg-black/25 px-1.5 py-0.5 font-mono text-xs">{status.portal_hint}</code>,
+                restart portals, then re-save the hotkey.
+              </li>
+            {:else if status.is_cosmic}
+              <li>
+                COSMIC’s portal does not expose
+                <code class="rounded bg-black/25 px-1.5 py-0.5 font-mono text-xs">GlobalShortcuts</code>
+                yet — there is no package to install for this.
+              </li>
+            {/if}
+            {#if status.desktop}
+              <li class="text-amber-100/60">
+                Detected session: <code class="rounded bg-black/20 px-1 font-mono text-xs">{status.session}</code>
+                · desktop <code class="rounded bg-black/20 px-1 font-mono text-xs">{status.desktop}</code>
+              </li>
+            {/if}
+          </ul>
+          <button
+            type="button"
+            class="mt-1 rounded-lg border border-amber-300/25 bg-amber-300/10 px-3 py-1.5 text-xs font-medium text-amber-50 transition hover:bg-amber-300/20"
+            onclick={() => void loadStatus()}
+          >
+            Recheck portal
+          </button>
+        </div>
+      </div>
+    </div>
+  {:else if status && status.global_shortcuts_available && status.session === "wayland"}
+    <div
+      class="flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 px-5 py-3 text-xs leading-relaxed text-emerald-100/90"
+    >
+      <span class="mt-0.5 shrink-0 text-emerald-300">
+        <IconKeyboard aria-hidden="true" size={18} stroke={1.7} />
+      </span>
+      <p>
+        GlobalShortcuts portal is available
+        {#if status.desktop}
+          on <code class="rounded bg-white/5 px-1 font-mono">{status.desktop}</code>
+        {/if}.
+        Saving the hotkey below registers it system-wide.
+      </p>
+    </div>
+  {:else if statusError}
+    <p class="text-xs text-slate-500">Could not probe desktop hotkey support ({statusError}).</p>
+  {/if}
 
   <div
     class="space-y-5 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl backdrop-blur-xl"
@@ -41,6 +132,12 @@
         Supported modifiers: Ctrl, Super/Meta/Win, Alt, Shift. Keys: Space, Enter, Tab, Escape,
         a–z.
       </span>
+      {#if status?.warning}
+        <span class="block text-xs text-amber-200/80">
+          The chord is still saved for when a GlobalShortcuts backend is available, but it will not
+          bind on this desktop — use tray Start/Stop for dictation.
+        </span>
+      {/if}
     </label>
 
     <div class="rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3 text-xs leading-relaxed text-amber-100/90">

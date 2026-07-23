@@ -1,5 +1,6 @@
 use crate::error::{OtoError, OtoResult};
 use crate::state::AppState;
+use serde::Serialize;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -25,6 +26,25 @@ use std::{fs, path::PathBuf, process::Command};
 const PORTAL_APP_ID: &str = "dev.oto.app";
 const PORTAL_SHORTCUT_ID: &str = "dictation";
 const PORTAL_ACTION: &str = "dev.oto.app:dictation";
+
+/// Desktop / portal capability snapshot for the Hotkeys settings panel.
+#[derive(Debug, Clone, Serialize)]
+pub struct HotkeyDesktopStatus {
+    /// `wayland`, `x11`, or `unknown`.
+    pub session: String,
+    /// Raw `XDG_CURRENT_DESKTOP` (may be empty or colon-joined).
+    pub desktop: String,
+    /// True when push-to-talk can use a global shortcut backend.
+    pub global_shortcuts_available: bool,
+    /// Whether the current desktop is COSMIC.
+    pub is_cosmic: bool,
+    /// Whether the current session is Hyprland.
+    pub is_hyprland: bool,
+    /// Human-readable guidance when global shortcuts cannot work.
+    pub warning: Option<String>,
+    /// Short label of the recommended portal package for this desktop, if any.
+    pub portal_hint: Option<String>,
+}
 
 /// Shared hotkey state. The event gate preserves press/release ordering even
 /// though recording work runs asynchronously.
@@ -313,18 +333,184 @@ fn is_wayland_session() -> bool {
 }
 
 #[cfg(target_os = "linux")]
+fn is_x11_session() -> bool {
+    std::env::var("XDG_SESSION_TYPE").is_ok_and(|value| value.eq_ignore_ascii_case("x11"))
+        || std::env::var_os("DISPLAY").is_some()
+}
+
+#[cfg(target_os = "linux")]
+fn current_desktop() -> String {
+    std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default()
+}
+
+#[cfg(target_os = "linux")]
 fn is_hyprland_session() -> bool {
-    std::env::var("XDG_CURRENT_DESKTOP")
-        .is_ok_and(|value| value.to_ascii_lowercase().contains("hyprland"))
+    current_desktop()
+        .to_ascii_lowercase()
+        .contains("hyprland")
         || std::env::var_os("HYPRLAND_INSTANCE_SIGNATURE").is_some()
 }
 
 #[cfg(target_os = "linux")]
-fn ensure_development_desktop_file() -> OtoResult<()> {
-    if !cfg!(debug_assertions) {
-        return Ok(());
+fn is_cosmic_session() -> bool {
+    current_desktop().to_ascii_lowercase().contains("cosmic")
+}
+
+#[cfg(target_os = "linux")]
+fn is_gnome_session() -> bool {
+    // Avoid treating COSMIC (or other non-GNOME desktops) as GNOME when both
+    // appear in a colon-joined XDG_CURRENT_DESKTOP value.
+    if is_cosmic_session() {
+        return false;
+    }
+    current_desktop().to_ascii_lowercase().contains("gnome")
+}
+
+#[cfg(target_os = "linux")]
+fn is_kde_session() -> bool {
+    let desktop = current_desktop().to_ascii_lowercase();
+    desktop.contains("kde") || desktop.contains("plasma")
+}
+
+/// Probe whether `org.freedesktop.portal.GlobalShortcuts` is exposed on the
+/// session bus. Presence of the interface is what binds need — not merely a
+/// running `xdg-desktop-portal` process.
+#[cfg(target_os = "linux")]
+async fn portal_has_global_shortcuts() -> bool {
+    let Ok(connection) = ashpd::zbus::Connection::session().await else {
+        return false;
+    };
+    let reply = connection
+        .call_method(
+            Some("org.freedesktop.portal.Desktop"),
+            "/org/freedesktop/portal/desktop",
+            Some("org.freedesktop.DBus.Introspectable"),
+            "Introspect",
+            &(),
+        )
+        .await;
+    match reply {
+        Ok(message) => message
+            .body()
+            .deserialize::<String>()
+            .map(|xml| xml.contains("org.freedesktop.portal.GlobalShortcuts"))
+            .unwrap_or(false),
+        Err(_) => false,
+    }
+}
+
+/// Build the warning shown when Wayland GlobalShortcuts cannot bind.
+#[cfg(target_os = "linux")]
+fn global_shortcuts_warning(is_cosmic: bool, is_hyprland: bool, is_gnome: bool, is_kde: bool) -> String {
+    if is_cosmic {
+        return "COSMIC does not implement the GlobalShortcuts portal yet, so Oto cannot bind a system-wide push-to-talk key. Use tray → Start Listening / Stop Listening to dictate. Global shortcuts work on GNOME, KDE Plasma, and Hyprland with their matching portal packages.".into();
+    }
+    if is_hyprland {
+        return "GlobalShortcuts portal is missing. On Hyprland install and run xdg-desktop-portal-hyprland, then restart portals and re-save this hotkey. Until then use tray → Start Listening.".into();
+    }
+    if is_gnome {
+        return "GlobalShortcuts portal is missing. On GNOME install xdg-desktop-portal-gnome, restart the portal user service, and re-save this hotkey. Until then use tray → Start Listening.".into();
+    }
+    if is_kde {
+        return "GlobalShortcuts portal is missing. On KDE install xdg-desktop-portal-kde, restart portals, and re-save this hotkey. Until then use tray → Start Listening.".into();
+    }
+    "GlobalShortcuts portal is unavailable on this desktop. Install the portal backend for your compositor (GNOME: xdg-desktop-portal-gnome, KDE: xdg-desktop-portal-kde, Hyprland: xdg-desktop-portal-hyprland), or use tray → Start Listening / Stop Listening.".into()
+}
+
+#[cfg(target_os = "linux")]
+fn portal_package_hint(is_cosmic: bool, is_hyprland: bool, is_gnome: bool, is_kde: bool) -> Option<String> {
+    if is_cosmic {
+        // No supported package yet — tell the UI not to recommend a wrong install.
+        return None;
+    }
+    if is_hyprland {
+        return Some("xdg-desktop-portal-hyprland".into());
+    }
+    if is_gnome {
+        return Some("xdg-desktop-portal-gnome".into());
+    }
+    if is_kde {
+        return Some("xdg-desktop-portal-kde".into());
+    }
+    None
+}
+
+/// Report session type, desktop identity, and GlobalShortcuts availability for
+/// the settings UI. Safe to call often (one D-Bus introspect on Wayland).
+pub async fn hotkey_desktop_status() -> HotkeyDesktopStatus {
+    #[cfg(not(target_os = "linux"))]
+    {
+        return HotkeyDesktopStatus {
+            session: "unknown".into(),
+            desktop: String::new(),
+            global_shortcuts_available: true,
+            is_cosmic: false,
+            is_hyprland: false,
+            warning: None,
+            portal_hint: None,
+        };
     }
 
+    #[cfg(target_os = "linux")]
+    {
+        let wayland = is_wayland_session();
+        let session = if wayland {
+            "wayland"
+        } else if is_x11_session() {
+            "x11"
+        } else {
+            "unknown"
+        }
+        .to_string();
+        let desktop = current_desktop();
+        let is_cosmic = is_cosmic_session();
+        let is_hyprland = is_hyprland_session();
+        let is_gnome = is_gnome_session();
+        let is_kde = is_kde_session();
+
+        // X11 uses the native grab path — portal GlobalShortcuts is not required.
+        let global_shortcuts_available = if wayland {
+            portal_has_global_shortcuts().await
+        } else {
+            true
+        };
+
+        let warning = if wayland && !global_shortcuts_available {
+            Some(global_shortcuts_warning(
+                is_cosmic,
+                is_hyprland,
+                is_gnome,
+                is_kde,
+            ))
+        } else {
+            None
+        };
+        let portal_hint = if wayland && !global_shortcuts_available {
+            portal_package_hint(is_cosmic, is_hyprland, is_gnome, is_kde)
+        } else {
+            None
+        };
+
+        HotkeyDesktopStatus {
+            session,
+            desktop,
+            global_shortcuts_available,
+            is_cosmic,
+            is_hyprland,
+            warning,
+            portal_hint,
+        }
+    }
+}
+
+/// Ensure `dev.oto.app.desktop` is visible to xdg-desktop-portal.
+///
+/// Host apps must call the portal Registry with an app ID that resolves via
+/// `Gio.DesktopAppInfo` (filename `{app-id}.desktop`). Tauri AppImages install
+/// a differently named launcher (`Oto_…desktop`), and unpackaged binaries have
+/// no launcher at all — both fail with "App info not found for 'dev.oto.app'".
+#[cfg(target_os = "linux")]
+fn ensure_portal_desktop_file() -> OtoResult<()> {
     let data_home = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
         .or_else(dirs::data_dir)
@@ -332,21 +518,51 @@ fn ensure_development_desktop_file() -> OtoResult<()> {
     let applications = data_home.join("applications");
     fs::create_dir_all(&applications)?;
     let desktop_file = applications.join(format!("{PORTAL_APP_ID}.desktop"));
-    if desktop_file.exists() {
-        return Ok(());
-    }
 
     let executable = std::env::current_exe()?;
+    // Quote the path so spaces/AppImage paths survive desktop-entry parsing.
+    let exec = shell_quote_desktop_exec(&executable);
     let entry = format!(
-        "[Desktop Entry]\nType=Application\nName=Oto\nComment=System-wide voice dictation\nExec={}\nTerminal=false\nCategories=Utility;AudioVideo;\n",
-        executable.display()
+        "[Desktop Entry]\n\
+         Type=Application\n\
+         Name=Oto\n\
+         Comment=System-wide push-to-talk voice dictation\n\
+         Exec={exec}\n\
+         Terminal=false\n\
+         Categories=Utility;Accessibility;\n\
+         Keywords=dictation;voice;speech;transcription;accessibility;\n\
+         StartupNotify=true\n\
+         StartupWMClass=oto\n\
+         NoDisplay=true\n"
     );
-    fs::write(&desktop_file, entry)?;
-    eprintln!(
-        "oto hotkey: installed development portal identity at {}",
-        desktop_file.display()
-    );
+
+    let needs_write = match fs::read_to_string(&desktop_file) {
+        Ok(existing) => !existing.contains(executable.to_string_lossy().as_ref()),
+        Err(_) => true,
+    };
+    if needs_write {
+        fs::write(&desktop_file, entry)?;
+        eprintln!(
+            "oto hotkey: installed portal app identity at {}",
+            desktop_file.display()
+        );
+        // Best-effort: refresh the MIME/app cache so portals see the new file.
+        let _ = Command::new("update-desktop-database")
+            .arg(&applications)
+            .status();
+    }
     Ok(())
+}
+
+/// Quote a path for a desktop-entry `Exec=` line.
+#[cfg(target_os = "linux")]
+fn shell_quote_desktop_exec(path: &std::path::Path) -> String {
+    let raw = path.display().to_string();
+    if raw.chars().any(|c| c.is_whitespace() || "\"'\\$`".contains(c)) {
+        format!("\"{}\"", raw.replace('\\', "\\\\").replace('"', "\\\""))
+    } else {
+        raw
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -534,7 +750,21 @@ async fn register_wayland_ptt<R: Runtime>(app: &AppHandle<R>, normalized: &str) 
         let _ = old.session.close().await;
     }
 
-    ensure_development_desktop_file()?;
+    // Desktops without GlobalShortcuts (notably COSMIC today) cannot bind a
+    // system-wide PTT key. Soft-skip so settings save still works; the Hotkeys
+    // UI surfaces a dedicated warning and users use tray Start/Stop instead.
+    if !portal_has_global_shortcuts().await {
+        let warning = global_shortcuts_warning(
+            is_cosmic_session(),
+            is_hyprland_session(),
+            is_gnome_session(),
+            is_kde_session(),
+        );
+        eprintln!("oto hotkey: skipping bind — {warning}");
+        return Ok(());
+    }
+
+    ensure_portal_desktop_file()?;
     let connection = ashpd::zbus::Connection::session()
         .await
         .map_err(|error| OtoError::Message(format!("Wayland portal connection failed: {error}")))?;
@@ -543,13 +773,24 @@ async fn register_wayland_ptt<R: Runtime>(app: &AppHandle<R>, normalized: &str) 
     register_host_app_with_connection(connection.clone(), app_id)
         .await
         .map_err(|error| {
-            OtoError::Message(format!("Wayland portal app registration failed: {error}"))
+            OtoError::Message(format!(
+                "Wayland portal app registration failed: {error}. \
+                 Ensure ~/.local/share/applications/{PORTAL_APP_ID}.desktop exists \
+                 (AppImage/dev installs need this so the portal can resolve the app ID), \
+                 then restart xdg-desktop-portal and re-save the hotkey."
+            ))
         })?;
 
     let portal = GlobalShortcuts::with_connection(connection)
         .await
         .map_err(|error| {
-            OtoError::Message(format!("GlobalShortcuts portal unavailable: {error}"))
+            OtoError::Message(format!(
+                "GlobalShortcuts portal unavailable: {error}. \
+                 Your desktop portal backend must implement org.freedesktop.portal.GlobalShortcuts \
+                 (GNOME: xdg-desktop-portal-gnome; KDE: xdg-desktop-portal-kde; \
+                 Hyprland: xdg-desktop-portal-hyprland). \
+                 COSMIC currently has no GlobalShortcuts backend — use the tray Start/Stop controls."
+            ))
         })?;
     let session = portal
         .create_session(CreateSessionOptions::default())
@@ -675,6 +916,45 @@ mod tests {
         assert!(parse_hotkey("Ctrl+F1").is_err());
         assert!(parse_hotkey("Ctrl").is_err());
         assert!(parse_hotkey("Ctrl+A+B").is_err());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn quotes_desktop_exec_paths() {
+        assert_eq!(
+            shell_quote_desktop_exec(std::path::Path::new("/usr/bin/oto")),
+            "/usr/bin/oto"
+        );
+        assert_eq!(
+            shell_quote_desktop_exec(std::path::Path::new(
+                "/home/user/.local/bin/Oto_0.1.0_amd64.AppImage"
+            )),
+            "/home/user/.local/bin/Oto_0.1.0_amd64.AppImage"
+        );
+        assert_eq!(
+            shell_quote_desktop_exec(std::path::Path::new("/opt/My Apps/oto")),
+            "\"/opt/My Apps/oto\""
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn cosmic_warning_mentions_tray_fallback() {
+        let warning = global_shortcuts_warning(true, false, false, false);
+        assert!(warning.to_ascii_lowercase().contains("cosmic"));
+        assert!(warning.contains("Start Listening") || warning.contains("tray"));
+        assert!(portal_package_hint(true, false, false, false).is_none());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn hyprland_hint_names_portal_package() {
+        let warning = global_shortcuts_warning(false, true, false, false);
+        assert!(warning.contains("xdg-desktop-portal-hyprland"));
+        assert_eq!(
+            portal_package_hint(false, true, false, false).as_deref(),
+            Some("xdg-desktop-portal-hyprland")
+        );
     }
 
     #[cfg(target_os = "linux")]
