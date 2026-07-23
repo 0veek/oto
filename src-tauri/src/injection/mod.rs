@@ -30,16 +30,6 @@ pub enum InjectResult {
     ClipboardOnly,
 }
 
-/// Inject `text` according to `mode`.
-///
-/// - **Auto:** AT-SPI → clipboard+paste → direct typing → clipboard-only fallback
-/// - **DirectType:** ydotool/wtype/xdotool virtual-keyboard typing
-/// - **ClipboardPaste:** set clipboard then simulate paste (errors if paste fails)
-/// - **ClipboardOnly:** set clipboard only
-pub async fn inject_text(text: &str, mode: &InjectionMode) -> OtoResult<InjectResult> {
-    inject_text_to(text, mode, None).await
-}
-
 fn append_inject_log(message: &str) {
     use std::io::Write;
     // Per-user path avoids multi-user /tmp ownership collisions (EACCES).
@@ -69,7 +59,13 @@ fn paste_via_clipboard(text: &str) -> OtoResult<()> {
     simulate_paste()
 }
 
-/// Inject `text`, optionally restoring a previously captured focus target first.
+/// Inject `text` according to `mode`, optionally restoring a previously captured
+/// focus target first.
+///
+/// - **Auto:** AT-SPI → clipboard+paste → direct typing → clipboard-only fallback
+/// - **DirectType:** ydotool/wtype/xdotool virtual-keyboard typing
+/// - **ClipboardPaste:** set clipboard then simulate paste (errors if paste fails)
+/// - **ClipboardOnly:** set clipboard only
 pub async fn inject_text_to(
     text: &str,
     mode: &InjectionMode,
@@ -204,7 +200,7 @@ mod tests {
 
     #[tokio::test]
     async fn clipboard_only_mode() {
-        let result = inject_text("oto unit", &InjectionMode::ClipboardOnly).await;
+        let result = inject_text_to("oto unit", &InjectionMode::ClipboardOnly, None).await;
         // May fail in headless CI without a clipboard server — accept either.
         match result {
             Ok(r) => assert_eq!(r, InjectResult::ClipboardOnly),

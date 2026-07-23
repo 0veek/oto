@@ -629,7 +629,7 @@ impl Pipeline {
 
         // Portal/global-shortcut release can arrive while Ctrl/Shift/Super are
         // still physically held. Wait long enough for the chord to settle, then
-        // inject_text also synthesizes explicit key-up events before typing.
+        // inject_text_to also synthesizes explicit key-up events before typing.
         sleep(Duration::from_millis(400)).await;
 
         let focus_target = {

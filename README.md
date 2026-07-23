@@ -62,12 +62,27 @@ Oto currently targets Linux on X11 or Wayland.
 | --- | --- |
 | Node.js 18+ and npm | SvelteKit frontend and Tauri CLI |
 | Stable Rust toolchain, Clang, and CMake | Native Tauri backend and local Whisper bindings |
-| Tauri 2 Linux prerequisites | WebKitGTK and desktop build libraries |
+| Tauri 2 Linux prerequisites | Desktop build libraries for the Tauri shell |
+| webkit2gtk | WebView runtime used by the Tauri frontend (`webkit2gtk-4.1` on most distros) |
+| libayatana-appindicator | System tray (`tray-icon`); **required to package** deb / AppImage / rpm |
 | ALSA development libraries | Microphone capture through `cpal` |
 | Secret Service / libsecret | Secure API-key storage |
 | A working microphone | Dictation input |
 
 Install the packages listed in the official [Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/) for your distribution. You may also need the distribution packages for ALSA and libsecret development headers.
+
+**AppIndicator is mandatory for `npm run tauri build`.** Oto ships a system tray menu, so Tauri’s bundler resolves `ayatana-appindicator3-0.1` (or legacy `appindicator3-0.1`) via `pkg-config` when writing packages. Without it the release binary may finish compiling, then the CLI aborts with `Can't detect any appindicator library` and no deb/AppImage/rpm is produced.
+
+| Distribution | Package to install |
+| --- | --- |
+| Arch / CachyOS | `libayatana-appindicator` |
+| Debian / Ubuntu | `libayatana-appindicator3-dev` |
+| Fedora | `libayatana-appindicator-gtk3-devel` |
+
+```bash
+# Confirm pkg-config can see the library before packaging:
+pkg-config --exists ayatana-appindicator3-0.1 && echo "appindicator ok"
+```
 
 ### Desktop integration
 
@@ -325,7 +340,7 @@ The Tauri development process opens the settings window and keeps the overlay pr
 
 ## Production builds
 
-Build all configured Linux package formats with:
+Install [libayatana-appindicator](#requirements) first (see Requirements). Then build all configured Linux package formats with:
 
 ```bash
 npm run tauri build
@@ -339,7 +354,9 @@ deb/Oto_<version>_amd64.deb
 rpm/Oto-<version>-1.x86_64.rpm
 ```
 
-The npm Tauri script sets `NO_STRIP=1`. This avoids the older `strip` executable embedded in `linuxdeploy` failing on modern Linux ELF sections such as `.relr.dyn`. The first AppImage build may need network access to download the AppImage runtime.
+The npm `tauri` script (`scripts/tauri.mjs`) sets `NO_STRIP=1` and, on Linux `build`, checks for appindicator via `pkg-config` before starting the compile. `NO_STRIP=1` avoids the older `strip` executable embedded in `linuxdeploy` failing on modern Linux ELF sections such as `.relr.dyn`. The first AppImage build may need network access to download the AppImage runtime.
+
+Debian packages declare `libayatana-appindicator3-1` as a runtime dependency automatically once the host library is detected.
 
 ### Flatpak and release automation
 
@@ -448,6 +465,26 @@ This almost always means the inject chain fell through to **clipboard-only**. Tr
 - Make sure a Secret Service implementation is running and unlocked.
 - Save the key again under the currently selected provider preset.
 - The JSON config intentionally contains no API key.
+
+### `Can't detect any appindicator library` / deb and AppImage missing
+
+The release binary finished (`Built application at: …/target/release/oto`) but packaging aborted. Tauri needs a system tray library on the **build host** because Oto enables `tray-icon`.
+
+```bash
+# Arch / CachyOS
+sudo pacman -S --needed libayatana-appindicator
+
+# Debian / Ubuntu
+sudo apt install libayatana-appindicator3-dev
+
+# Fedora
+sudo dnf install libayatana-appindicator-gtk3-devel
+
+pkg-config --exists ayatana-appindicator3-0.1 && echo ok
+npm run tauri build
+```
+
+`npm run tauri build` runs this check first and prints the same install commands if the library is missing.
 
 ### `failed to run linuxdeploy`
 
