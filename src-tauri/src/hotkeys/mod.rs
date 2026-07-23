@@ -19,8 +19,6 @@ use ashpd::{
 #[cfg(target_os = "linux")]
 use futures_util::StreamExt;
 #[cfg(target_os = "linux")]
-use serde::Deserialize;
-#[cfg(target_os = "linux")]
 use std::{fs, path::PathBuf, process::Command};
 
 const PORTAL_APP_ID: &str = "dev.oto.app";
@@ -566,7 +564,7 @@ fn shell_quote_desktop_exec(path: &std::path::Path) -> String {
 }
 
 #[cfg(target_os = "linux")]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct HyprlandBind {
     modmask: u32,
     key: String,
@@ -618,10 +616,110 @@ fn hyprland_unbind_spec(modifiers: &str, key: &str) -> String {
     }
 }
 
+/// Parse plain-text `hyprctl binds` output.
+///
+/// Hyprland 0.56 ships a broken `binds -j` encoder (field values are shifted and
+/// strings are often unquoted), so JSON is unusable. The text format remains stable:
+///
+/// ```text
+/// bindd
+/// modmask: 64
+/// submap:
+/// key: D
+/// keycode: 0
+/// catchall: false
+/// description: App launcher
+/// dispatcher: exec
+/// arg: rofi -show drun
+/// ```
+#[cfg(target_os = "linux")]
+fn parse_hyprland_binds_plain(text: &str) -> Vec<HyprlandBind> {
+    let mut binds = Vec::new();
+    let mut modmask: Option<u32> = None;
+    let mut key: Option<String> = None;
+    let mut dispatcher: Option<String> = None;
+    let mut arg: Option<String> = None;
+    let mut in_bind = false;
+
+    let flush = |binds: &mut Vec<HyprlandBind>,
+                 modmask: &mut Option<u32>,
+                 key: &mut Option<String>,
+                 dispatcher: &mut Option<String>,
+                 arg: &mut Option<String>| {
+        if let (Some(mask), Some(k), Some(disp), Some(a)) =
+            (modmask.take(), key.take(), dispatcher.take(), arg.take())
+        {
+            binds.push(HyprlandBind {
+                modmask: mask,
+                key: k,
+                dispatcher: disp,
+                arg: a,
+            });
+        } else {
+            *modmask = None;
+            *key = None;
+            *dispatcher = None;
+            *arg = None;
+        }
+    };
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        // Bind headers look like `bind`, `bindd`, `bindlnd`, … and have no `:`.
+        if trimmed.starts_with("bind") && !trimmed.contains(':') {
+            if in_bind {
+                flush(
+                    &mut binds,
+                    &mut modmask,
+                    &mut key,
+                    &mut dispatcher,
+                    &mut arg,
+                );
+            }
+            in_bind = true;
+            continue;
+        }
+        if !in_bind {
+            continue;
+        }
+        let Some((field, value)) = trimmed.split_once(':') else {
+            continue;
+        };
+        let value = value.trim();
+        match field.trim() {
+            "modmask" => {
+                modmask = value.parse().ok();
+            }
+            "key" => {
+                key = Some(value.to_string());
+            }
+            "dispatcher" => {
+                dispatcher = Some(value.to_string());
+            }
+            "arg" => {
+                // Keep empty args as Some("") so incomplete records can flush.
+                arg = Some(value.to_string());
+            }
+            _ => {}
+        }
+    }
+    if in_bind {
+        flush(
+            &mut binds,
+            &mut modmask,
+            &mut key,
+            &mut dispatcher,
+            &mut arg,
+        );
+    }
+    binds
+}
+
 #[cfg(target_os = "linux")]
 fn hyprland_binds() -> OtoResult<Vec<HyprlandBind>> {
+    // Prefer plain text: Hyprland 0.56's `binds -j` emits invalid JSON.
     let output = Command::new("hyprctl")
-        .args(["binds", "-j"])
+        .args(["binds"])
         .output()
         .map_err(|error| OtoError::Message(format!("failed to run hyprctl: {error}")))?;
     if !output.status.success() {
@@ -630,8 +728,15 @@ fn hyprland_binds() -> OtoResult<Vec<HyprlandBind>> {
             String::from_utf8_lossy(&output.stderr).trim()
         )));
     }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|error| OtoError::Message(format!("invalid hyprctl binds response: {error}")))
+    let text = String::from_utf8_lossy(&output.stdout);
+    let binds = parse_hyprland_binds_plain(&text);
+    if binds.is_empty() && !text.trim().is_empty() {
+        return Err(OtoError::Message(
+            "invalid hyprctl binds response: could not parse any binds from plain-text output"
+                .into(),
+        ));
+    }
+    Ok(binds)
 }
 
 #[cfg(target_os = "linux")]
@@ -980,5 +1085,91 @@ mod tests {
         assert_eq!(hyprland_modifiers_from_mask(65).unwrap(), "SHIFT SUPER");
         assert_eq!(hyprland_unbind_spec("", "F12"), "F12");
         assert_eq!(hyprland_unbind_spec("CTRL", "Space"), "CTRL,Space");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn parses_hyprland_binds_plain_text() {
+        let sample = "\
+bindd
+modmask: 64
+submap: 
+key: D
+keycode: 0
+catchall: false
+description: App launcher
+dispatcher: exec
+arg: rofi -show drun
+
+bind
+modmask: 5
+submap: 
+key: Space
+keycode: 0
+catchall: false
+description: 
+dispatcher: global
+arg: dev.oto.app:dictation
+
+bindmd
+modmask: 64
+submap: 
+key: mouse:272
+keycode: 0
+catchall: false
+description: Move window
+dispatcher: mouse
+arg: movewindow
+";
+        let binds = parse_hyprland_binds_plain(sample);
+        assert_eq!(binds.len(), 3);
+        assert_eq!(
+            binds[0],
+            HyprlandBind {
+                modmask: 64,
+                key: "D".into(),
+                dispatcher: "exec".into(),
+                arg: "rofi -show drun".into(),
+            }
+        );
+        assert_eq!(
+            binds[1],
+            HyprlandBind {
+                modmask: 5,
+                key: "Space".into(),
+                dispatcher: "global".into(),
+                arg: "dev.oto.app:dictation".into(),
+            }
+        );
+        assert_eq!(binds[2].key, "mouse:272");
+        assert_eq!(binds[2].dispatcher, "mouse");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn parses_hyprland_binds_empty_arg_and_skips_incomplete() {
+        let sample = "\
+bindd
+modmask: 8
+submap: 
+key: Tab
+keycode: 0
+catchall: false
+description: Bring active to top
+dispatcher: bringactivetotop
+arg: 
+
+bind
+modmask: not-a-number
+key: X
+dispatcher: exec
+arg: fail
+
+";
+        let binds = parse_hyprland_binds_plain(sample);
+        assert_eq!(binds.len(), 1);
+        assert_eq!(binds[0].key, "Tab");
+        assert_eq!(binds[0].arg, "");
+        assert_eq!(binds[0].dispatcher, "bringactivetotop");
     }
 }
