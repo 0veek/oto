@@ -8,7 +8,7 @@
   </p>
   <p>
     <a href="#features">Features</a> ·
-    <a href="#quick-start">Quick start</a> ·
+    <a href="#installation">Installation</a> ·
     <a href="#linux-desktop-setup">Linux setup</a> ·
     <a href="#development">Development</a> ·
     <a href="#troubleshooting">Troubleshooting</a>
@@ -61,17 +61,60 @@ stops the recorder, sends the captured audio to the selected transcription
 engine, optionally polishes the transcript, and inserts the result into the
 previously focused application.
 
-## Quick start
+## Installation
 
-Oto currently targets Linux on X11 or Wayland. After installing the
-[development prerequisites](#development-prerequisites), run:
+Oto includes a source installer for the major Linux distribution families. It
+detects the distribution, X11 or Wayland session, and desktop/compositor;
+installs and verifies the native build requirements; clones Oto; runs the
+frontend checks; builds the appropriate bundle; and installs it.
+
+| Distribution family | Default bundle |
+| --- | --- |
+| Debian, Ubuntu, Linux Mint, Pop!_OS | `.deb` |
+| Fedora, RHEL and compatible mutable systems | Flatpak |
+| Arch, Manjaro, EndeavourOS, CachyOS | AppImage |
+
+Download and review the installer, then run it as your normal desktop user.
+Do **not** run the whole script with `sudo`; it requests elevation only for
+system packages and system-wide bundle integration.
 
 ```bash
-git clone https://github.com/0veek/oto.git
-cd oto
-npm install
-npm run tauri dev
+curl -fsSLO https://raw.githubusercontent.com/0veek/oto/master/install.sh
+less install.sh
+chmod +x install.sh
+./install.sh
 ```
+
+By default, the source checkout and build cache are kept under
+`~/.cache/oto-installer/source`. Re-running the command updates that checkout
+with a fast-forward pull and rebuilds Oto. Useful overrides include:
+
+```bash
+# Build a particular release
+./install.sh --ref v0.1.0
+
+# Override the distro's default format
+./install.sh --bundle appimage
+
+# Produce the bundle without installing it
+./install.sh --build-only
+
+# Build a checkout you already cloned (useful for contributors)
+./install.sh --local .
+```
+
+Run `./install.sh --help` for all options. The supported bundle overrides are
+`deb`, `flatpak`, and `appimage`. Automatic `.deb` installation remains limited
+to Debian-family systems; Flatpak and AppImage can be selected on any supported
+family.
+
+> [!NOTE]
+> Fedora Silverblue, Kinoite, and other rpm-ostree desktops need a mutable
+> build environment. Run the installer inside a Fedora
+> [Toolbx](https://containertoolbx.org/) and choose `--build-only`, then install
+> the resulting Flatpak on the host.
+
+### First launch
 
 On first launch:
 
@@ -251,7 +294,7 @@ settings. An optional bearer token is stored in the OS keyring.
 
 | Requirement | Purpose |
 | --- | --- |
-| Node.js 18+ and npm | SvelteKit frontend and Tauri CLI |
+| Node.js 20.19+ or 22.12+ and npm | SvelteKit frontend and Tauri CLI |
 | Stable Rust toolchain, Clang, and CMake | Tauri backend and local Whisper bindings |
 | [Tauri 2 Linux prerequisites](https://v2.tauri.app/start/prerequisites/) | Desktop build libraries |
 | `webkit2gtk-4.1` | WebView runtime |
