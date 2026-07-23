@@ -1,35 +1,39 @@
 <div align="center">
-  <img src="src-tauri/icons/128x128.png" alt="Oto logo" width="112" />
+  <img src="src-tauri/icons/128x128.png" alt="Oto logo" width="112">
   <h1>Oto</h1>
   <p><strong>System-wide, push-to-talk AI voice dictation for Linux.</strong></p>
-  <p>Hold a shortcut, speak, release, and Oto transcribes, optionally polishes, and inserts the result into the application you were using.</p>
+  <p>
+    Hold a shortcut, speak, then release. Oto transcribes your voice, optionally
+    polishes the result, and inserts it into the application you were using.
+  </p>
+  <p>
+    <a href="#features">Features</a> ·
+    <a href="#quick-start">Quick start</a> ·
+    <a href="#linux-desktop-setup">Linux setup</a> ·
+    <a href="#development">Development</a> ·
+    <a href="#troubleshooting">Troubleshooting</a>
+  </p>
 </div>
 
-<p align="center">
-  <img src="docs/assets/oto-features-bento.png" alt="Oto feature overview: push-to-talk dictation, X11 and Wayland shortcuts, cloud or local transcription, polish and vocabulary, snippets and Command Mode, layered text insertion, and keyring privacy" width="100%" />
-</p>
+![Oto feature overview](docs/assets/oto-features-bento.png)
 
 > [!NOTE]
-> Oto is an early Linux desktop release. Its post-MVP features are implemented, but desktop integration can still vary between compositors, accessibility trees, portals, and target applications.
+> Oto is an early Linux desktop release. Desktop integration can vary between
+> compositors, portals, accessibility trees, and target applications.
 
 ## Features
 
-- Hold-to-talk dictation with distinct **Listening**, **Processing**, **Done**, and **Error** overlay states.
-- Global shortcuts on X11 and Wayland, including XDG GlobalShortcuts portal support and Hyprland runtime bindings.
-- OpenAI-compatible speech-to-text and chat-completions APIs.
-- Presets for OpenAI, Groq, OpenRouter, and custom compatible endpoints.
-- Optional transcript cleanup with tone guidance and a protected-terms dictionary.
-- Offline transcription through `whisper-rs`, multilingual auto-detection, and live local partial results.
-- Exact-trigger voice snippets, reusable style presets, and select-and-rewrite Command Mode.
-- Local, optional, capped dictation history with copy and delete controls.
-- Dictionary vocabulary prompting for both cloud and local transcription engines.
-- Layered Linux text insertion: direct AT-SPI `EditableText`, virtual-keyboard typing, clipboard plus simulated paste, then clipboard-only fallback.
-- Declarative profiles for additional OpenAI-compatible providers, including keyless localhost endpoints.
-- Midnight, system, light, and high-contrast themes, adjustable text size, reduced motion, and visible keyboard focus.
+- Push-to-talk dictation with clear listening, processing, done, and error states.
+- Global shortcuts on X11 and Wayland, including XDG GlobalShortcuts and Hyprland support.
+- Cloud transcription through OpenAI-compatible APIs or offline transcription with `whisper-rs`.
+- Optional transcript cleanup with tone guidance, style presets, and protected vocabulary.
+- Exact-trigger voice snippets and select-and-rewrite Command Mode.
+- Layered text insertion through AT-SPI, virtual-keyboard typing, clipboard and paste, or clipboard-only fallback.
+- Optional, capped local history with copy and delete controls.
+- Provider profiles for OpenAI, Groq, OpenRouter, and compatible custom endpoints.
+- API keys stored in the operating system keyring, separate from the JSON configuration.
+- Configurable themes, text size, reduced motion, overlay behavior, and keyboard focus.
 - Explicit, user-controlled JSON sync for dictionary entries, snippets, and styles.
-- System tray controls when the global shortcut is unavailable.
-- API keys stored in the operating system keyring—not in the JSON configuration file.
-- Draggable, always-on-top overlay with hidden and minimal idle modes.
 - Built-in checks for the microphone, transcription, provider configuration, and text insertion.
 
 ## How it works
@@ -47,64 +51,60 @@ flowchart LR
     K --> G[Insert text]
     L --> G
     G --> H[AT-SPI]
-    G --> M[ydotool / wtype typing]
-    G --> I[Clipboard + paste]
-    G --> J[Clipboard fallback]
+    G --> I[Clipboard and paste]
+    G --> J[Virtual-keyboard typing]
+    G --> M[Clipboard fallback]
 ```
 
-The overlay becomes visible as soon as the press event starts a recording. Releasing the shortcut switches it to processing, stops the recorder, sends the WAV data to the configured provider, optionally polishes the transcript, and injects the result into the previously focused application.
+Pressing the shortcut starts recording and displays the overlay. Releasing it
+stops the recorder, sends the captured audio to the selected transcription
+engine, optionally polishes the transcript, and inserts the result into the
+previously focused application.
 
-## Requirements
+## Quick start
 
-Oto currently targets Linux on X11 or Wayland.
-
-| Requirement | Why it is needed |
-| --- | --- |
-| Node.js 18+ and npm | SvelteKit frontend and Tauri CLI |
-| Stable Rust toolchain, Clang, and CMake | Native Tauri backend and local Whisper bindings |
-| Tauri 2 Linux prerequisites | Desktop build libraries for the Tauri shell |
-| webkit2gtk | WebView runtime used by the Tauri frontend (`webkit2gtk-4.1` on most distros) |
-| libayatana-appindicator | System tray (`tray-icon`); **required to package** deb / AppImage / rpm |
-| ALSA development libraries | Microphone capture through `cpal` |
-| Secret Service / libsecret | Secure API-key storage |
-| A working microphone | Dictation input |
-
-Install the packages listed in the official [Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/) for your distribution. You may also need the distribution packages for ALSA and libsecret development headers.
-
-**AppIndicator is mandatory for `npm run tauri build`.** Oto ships a system tray menu, so Tauri’s bundler resolves `ayatana-appindicator3-0.1` (or legacy `appindicator3-0.1`) via `pkg-config` when writing packages. Without it the release binary may finish compiling, then the CLI aborts with `Can't detect any appindicator library` and no deb/AppImage/rpm is produced.
-
-| Distribution | Package to install |
-| --- | --- |
-| Arch / CachyOS | `libayatana-appindicator` |
-| Debian / Ubuntu | `libayatana-appindicator3-dev` |
-| Fedora | `libayatana-appindicator-gtk3-devel` |
+Oto currently targets Linux on X11 or Wayland. After installing the
+[development prerequisites](#development-prerequisites), run:
 
 ```bash
-# Confirm pkg-config can see the library before packaging:
-pkg-config --exists ayatana-appindicator3-0.1 && echo "appindicator ok"
+git clone https://github.com/0veek/oto.git
+cd oto
+npm install
+npm run tauri dev
 ```
 
-### Desktop integration
+On first launch:
 
-Install the tools relevant to your session:
+1. Open **Providers**, choose a preset, and save an API key, or add a compatible provider.
+2. Under **Models**, choose cloud transcription or a local Whisper model.
+3. Keep the default `Ctrl+Shift+Space` shortcut or select an unused chord.
+4. Run **Test microphone**, **Test transcription**, and **Test insertion**.
+5. Focus a text field, hold the shortcut while speaking, and release it to transcribe.
 
-| Environment | Required or recommended components |
+If the global shortcut cannot be registered, use **Start Listening** and
+**Stop Listening** from the system tray.
+
+## Linux desktop setup
+
+Oto uses different desktop services and insertion tools depending on the active
+session.
+
+| Environment | Components |
 | --- | --- |
+| X11 | Tauri global shortcut support; `xdotool` for simulated input |
 | Wayland | `xdg-desktop-portal` plus the portal backend for your compositor |
-| GNOME Wayland | `xdg-desktop-portal-gnome` (usually installed with GNOME) |
-| Hyprland | `xdg-desktop-portal-hyprland`; Oto creates a runtime `global` bind |
-| Wayland insertion | `ydotool` with a **running** user daemon (`ydotoold`); optional `wtype` fallback |
-| X11 insertion | `xdotool` |
+| GNOME Wayland | `xdg-desktop-portal-gnome`; `ydotool` recommended for input |
+| Hyprland | `xdg-desktop-portal-hyprland`; Oto creates a runtime `global` binding |
+| Secure key storage | A Secret Service implementation such as GNOME Keyring |
 
-Oto can still leave the result on the clipboard when no supported paste tool is available. For a deeper Wayland/GNOME error catalog, see [`errorfix.md`](errorfix.md).
+Oto first tries direct AT-SPI insertion. If the target application does not
+expose an editable accessibility object, it falls back to clipboard and
+simulated paste, direct typing, and finally clipboard-only delivery.
 
-### Wayland setup (GNOME, Hyprland, and others)
+### Wayland input
 
-On Wayland, Oto cannot type into other apps by itself. Insertion uses **AT-SPI** when possible, then **clipboard + simulated Ctrl+V**, then **direct typing**. The last two steps need `ydotool` (preferred) or `wtype`.
-
-`ydotool` injects keys through `/dev/uinput`. That works on **both** Wayland and X11; Wayland is not the reason the daemon fails. The usual failure is permissions or starting the wrong systemd unit.
-
-#### 1. Install packages
+For reliable insertion on Wayland, install `ydotool` and run its user daemon.
+`wtype` is an optional fallback.
 
 ```bash
 # Arch
@@ -117,203 +117,173 @@ sudo dnf install ydotool wtype wl-clipboard xdg-desktop-portal
 sudo apt install ydotool wtype wl-clipboard xdg-desktop-portal
 ```
 
-On GNOME, also keep `xdg-desktop-portal-gnome` installed. On Hyprland, install and run `xdg-desktop-portal-hyprland`.
+On GNOME, keep `xdg-desktop-portal-gnome` installed. On Hyprland, install and
+run `xdg-desktop-portal-hyprland`.
 
-#### 2. Join the `input` group (required for `ydotoold`)
-
-`/dev/uinput` is typically `root:input` mode `0660`. Without the `input` group, the daemon exits immediately with:
-
-```text
-failed to open uinput device: Permission denied
-```
+`ydotoold` needs access to `/dev/uinput`, which commonly requires membership in
+the `input` group:
 
 ```bash
 sudo usermod -aG input "$USER"
 ```
 
-Then **fully log out of the desktop session and log back in** (or reboot). A new terminal alone is not enough—the graphical session must pick up the new group.
-
-Confirm after login:
-
-```bash
-groups | grep -w input    # must list "input"
-```
-
-#### 3. Enable the **user** systemd unit
-
-The package ships a **user** unit, not a system unit. Package install does **not** start the daemon by itself.
+Fully log out of the desktop session and log back in so the new group is
+applied. Then enable the user service:
 
 ```bash
+groups | grep -w input
 systemctl --user enable --now ydotool.service
-systemctl --user status ydotool.service   # must be: active (running)
+systemctl --user status ydotool.service
 ```
 
-Rules of thumb:
-
-- Always use `systemctl --user … ydotool.service`.
-- Do **not** run `systemctl start ydotool.service` without `--user` — that looks for a system unit and fails with “Unit ydotool.service not found.”
-- The unit name is one word: `ydotool.service` (no space after the dot).
-
-If the unit previously hit a restart limit after permission errors:
+Verify input by focusing a text field in another application and running:
 
 ```bash
-systemctl --user reset-failed ydotool.service
-systemctl --user enable --now ydotool.service
-```
-
-#### 4. Verify the socket and typing
-
-```bash
-# Socket (path may vary; Oto also checks YDOTOOL_SOCKET and /tmp)
-ls -la "$XDG_RUNTIME_DIR/.ydotool_socket"
-
-# Focus a text field in another app (gedit, browser, etc.), then:
 ydotool type -- 'hello from ydotool '
 ```
 
-If that types into the focused field, Oto can use the same path for paste and direct type. Restart Oto after the daemon is healthy.
+> [!IMPORTANT]
+> Use `systemctl --user`, not the system-level `systemctl` command. If the
+> service previously reached its restart limit, run
+> `systemctl --user reset-failed ydotool.service` before starting it again.
 
-#### 5. Optional: `wtype` fallback
+For portal errors, `/dev/uinput` permission issues, focus problems, and
+application-specific insertion failures, see the
+[Wayland and GNOME troubleshooting guide](errorfix.md).
 
-Install `wtype` as a secondary tool. On many compositors (including GNOME), `wtype` can exit successfully without inserting text; a healthy `ydotoold` is the reliable path.
+## Configuration
 
-#### Common Wayland mistakes
+### Providers and models
 
-| Symptom | Cause | Fix |
-| --- | --- | --- |
-| `enable --now` “works” but status is **failed** | No `input` group → uinput denied | `usermod -aG input`, full re-login, restart unit |
-| `Unit ydotool.service not found` | Started as a **system** unit | Use `systemctl --user` |
-| `start-limit-hit` | Crash loop (usually permissions) | Fix group, then `reset-failed` and start again |
-| Transcript OK, text not inserted | Daemon down / no `wtype` → clipboard-only | Fix `ydotoold`; check `/tmp/oto-inject-$USER.log` |
-| Keys land in the wrong window (GNOME) | Focus changed during Processing | Keep the target field focused; GNOME has no Hyprland-style restore |
-| Global shortcut does nothing | Portal bind missing/denied | Restart `xdg-desktop-portal` (+ compositor backend); use tray Start/Stop |
+Oto uses OpenAI-compatible endpoints for cloud transcription and optional
+transcript polishing.
 
-Diagnostic log written by the injector:
-
-```bash
-tail -n 50 "/tmp/oto-inject-${USER}.log"
-```
-
-Look for `ydotool_ready=false`, `result=ClipboardOnly`, or paste/type failures.
-
-On Arch Linux, a typical development setup is:
-
-```bash
-sudo pacman -S --needed base-devel webkit2gtk-4.1 libayatana-appindicator \
-  alsa-lib libsecret nodejs npm rust clang cmake patchelf wtype ydotool wl-clipboard
-
-sudo usermod -aG input "$USER"
-# log out and back in, then:
-systemctl --user enable --now ydotool.service
-```
-
-## Quick start
-
-```bash
-git clone https://github.com/0veek/oto.git
-cd oto
-npm install
-npm run tauri dev
-```
-
-On first launch:
-
-1. Open **Providers**, choose a preset, and save the API key—or add a compatible provider profile.
-2. Under **Models**, choose cloud transcription or a local Whisper model.
-3. Keep the default `Ctrl+Shift+Space` shortcut or choose an unused chord.
-4. Use **Test microphone**, **Test transcription**, and **Test insertion** before your first full dictation.
-5. Hold the shortcut while speaking and release it to process the recording.
-
-The tray menu provides **Start Listening** and **Stop Listening** if a global shortcut cannot be registered.
-
-## Local and private operation
-
-Choose **Models → Local Whisper**, then enter the absolute path to a whisper.cpp-compatible `ggml-*.bin` model. The upstream [whisper.cpp model guide](https://github.com/ggml-org/whisper.cpp/blob/master/models/README.md) lists model sizes and download methods. Leaving the language empty enables detection; non-`.en` models are required for multilingual speech.
-
-Local Whisper caches the selected model after the first run. When **Show partial results** is enabled, Oto periodically transcribes snapshots while recording and displays the changing text in the overlay. Larger models need more memory and can make previews slower.
-
-For an entirely local pipeline, either disable polish or add a custom provider profile pointing at a localhost OpenAI-compatible LLM endpoint. Oto permits keyless `http://localhost` and `http://127.0.0.1` profiles; non-local endpoints still require a key.
-
-## Snippets, styles, and Command Mode
-
-- A snippet expands only when its trigger is the entire utterance. `my signature` and `snippet my signature` both match a trigger named `my signature`; a normal sentence containing those words does not.
-- The active style preset and the free-form tone hint are combined for polishing. Built-in presets can be edited or removed, and custom presets can be added.
-- For Command Mode, select text in the target application, choose tray **Command Mode (selected text)** or use **Styles & commands → Start Command Mode**, say an instruction, then stop listening. Oto reads the selection through AT-SPI when possible, falls back to simulated copy, asks the configured polish model for replacement text, and inserts it over the selection.
-
-Command Mode always needs a chat-completions model, even when ordinary dictation polish is disabled.
-
-## Provider configuration
-
-Oto uses an OpenAI-compatible client for both audio transcription and optional transcript polishing.
-
-| Preset | Base URL | Default STT model | Default polish model |
+| Preset | Base URL | Default transcription model | Default polish model |
 | --- | --- | --- | --- |
 | OpenAI | `https://api.openai.com/v1` | `whisper-1` | `gpt-4o-mini` |
 | Groq | `https://api.groq.com/openai/v1` | `whisper-large-v3` | `llama-3.1-8b-instant` |
 | OpenRouter | `https://openrouter.ai/api/v1` | `openai/whisper-1` | `openai/gpt-4o-mini` |
 | Custom | User supplied | `whisper-1` | `gpt-4o-mini` |
 
-Provider capabilities and model identifiers change independently of Oto. Confirm that your endpoint implements the compatible audio-transcription route and, when polishing is enabled, chat completions.
+Provider capabilities and model identifiers can change independently of Oto.
+Confirm that a custom endpoint implements audio transcriptions and, when polish
+is enabled, chat completions.
 
-### Settings
+### Local transcription
 
-- **Providers**: preset, base URL, and keyring-backed API key.
-- **Models**: STT model, polish model, temperature, language, and tone hint.
-- **Hotkeys**: the push-to-talk chord.
-- **Dictionary**: names and technical terms the polisher should preserve.
-- **Snippets**: exact spoken triggers and verbatim expansions.
-- **Styles & commands**: reusable writing styles and select-and-rewrite controls.
-- **History**: recent local dictations and command results.
-- **Appearance**: hidden or minimal idle overlay, UI preview, and microphone test.
-- **Privacy & sync**: local history policy and explicit dictionary/snippet/style sync.
-- **Injection**: automatic, direct typing, clipboard-and-paste, or clipboard-only delivery.
-- **About**: version and privacy summary.
+Choose **Models → Local Whisper** and provide the absolute path to a
+whisper.cpp-compatible `ggml-*.bin` model. See the
+[whisper.cpp model guide](https://github.com/ggml-org/whisper.cpp/blob/master/models/README.md)
+for model sizes and download options.
 
-Configuration is stored at the platform XDG location, normally:
+Leave the language empty for automatic detection. Use a non-`.en` model for
+multilingual speech. Oto caches the selected model after its first load and can
+show live partial results while recording.
+
+For a fully local pipeline, disable polishing or point a custom provider at a
+localhost OpenAI-compatible LLM. Keyless profiles are allowed only for
+`http://localhost` and `http://127.0.0.1`; remote endpoints require a key.
+
+### Snippets, styles, and Command Mode
+
+- A snippet expands only when its trigger is the complete utterance. A trigger
+  named `my signature` matches `my signature` or `snippet my signature`, but not
+  a longer sentence containing those words.
+- Style presets and the free-form tone hint are combined when polishing.
+- Command Mode rewrites selected text from a spoken instruction. It reads the
+  selection through AT-SPI when possible and otherwise uses simulated copy.
+
+Command Mode always requires a chat-completions model, even when normal
+dictation polishing is disabled.
+
+### Hotkeys and text insertion
+
+The default shortcut is `Ctrl+Shift+Space`.
+
+- Wayland uses the XDG GlobalShortcuts portal.
+- Hyprland also receives the compositor-side runtime binding required by the portal.
+- X11 uses Tauri's native global-shortcut plugin.
+- Oto never overwrites an existing Hyprland binding.
+- Pressing the shortcut starts listening; releasing it starts processing.
+
+Desktop environments often reserve `Super` shortcuts, and input methods may
+reserve chords such as `Ctrl+Alt+Space`. Prefer an unused `Ctrl+Shift+…` chord.
+
+Text insertion has four modes:
+
+| Mode | Behavior |
+| --- | --- |
+| **Auto** | Try AT-SPI, clipboard and simulated paste, direct typing, then clipboard-only |
+| **Direct type** | Type through `ydotool`, `wtype`, or `xdotool` |
+| **Clipboard + paste** | Copy the transcript and invoke a supported paste simulator |
+| **Clipboard only** | Copy the transcript without generating keyboard input |
+
+On Hyprland, Oto attempts to restore the target captured when recording began.
+On GNOME Wayland, keep the target field focused through the processing stage.
+
+### Storage and optional sync
+
+Non-secret settings are normally stored at:
 
 ```text
 ~/.config/oto/config.json
 ```
 
-API keys are stored separately by the Secret Service keyring under service `dev.oto.app`, with one account per provider preset. Oto rejects attempts to serialize API-key fields into its configuration JSON.
+API keys are stored separately through Secret Service under `dev.oto.app`, with
+one account per provider preset. Oto rejects attempts to serialize keys into the
+configuration file.
 
-History is stored separately under the XDG data directory, normally `~/.local/share/oto/history.json`. Clearing history rewrites this file to an empty list. Audio buffers are kept in memory for the active session and are not written into history.
+History is normally stored at:
 
-### Optional sync protocol
+```text
+~/.local/share/oto/history.json
+```
 
-Sync is off by default and runs only when **Sync now** is pressed. Configure an HTTPS URL that supports `GET` and `PUT` of one JSON document; plain HTTP is accepted only for localhost. Oto downloads remote data, keeps local values for matching IDs, adds remote-only items, and uploads the merged document. An optional bearer token lives in the OS keyring. Provider credentials, audio, history, and general settings are never included.
-
-## Hotkeys
-
-The default shortcut is `Ctrl+Shift+Space`.
-
-- On **Wayland**, Oto registers through the XDG GlobalShortcuts portal.
-- On **Hyprland**, Oto also installs the compositor-side runtime `global` binding required to activate the portal shortcut.
-- On **X11**, Oto uses Tauri's native global-shortcut plugin.
-- Repeated press events are filtered, so holding the key does not immediately stop recording.
-- A press begins listening; the corresponding release stops capture and starts processing.
-- Oto will not overwrite an existing Hyprland binding. If a saved chord becomes unavailable, startup falls back to `Ctrl+Shift+Space` when that chord is free.
-
-Prefer combinations such as `Ctrl+Shift+Space` or `Ctrl+Shift+D`. Desktop environments commonly reserve `Super` shortcuts, while input methods may reserve combinations such as `Ctrl+Alt+Space`.
-
-## Text insertion
-
-The four modes are:
-
-| Mode | Behavior |
-| --- | --- |
-| **Auto** | Try AT-SPI, clipboard + simulated `Ctrl+V` (paste whole transcript at once), direct typing, then clipboard-only |
-| **Direct type** | Type character-by-character through `ydotool`, `wtype`, or `xdotool` |
-| **Clipboard + paste** | Copy and require a supported paste simulator |
-| **Clipboard only** | Copy without generating keyboard input |
-
-Oto first searches the AT-SPI accessibility tree for the focused editable object and replaces its selection or inserts at its caret. **Auto prefers clipboard + paste** so the full transcript lands in one shot instead of key-by-key typing (which is slow with `ydotool type`). If paste tools fail, it falls back to direct typing. Wayland typing order follows [Hyprvoice](https://github.com/leonardotrapani/hyprvoice): `ydotool` first, then `wtype`, with line terminators converted to spaces so generated Enter keys cannot submit a form. On X11, direct typing uses `xdotool --clearmodifiers`.
-
-On Wayland, prefer a running `ydotoold` over `wtype` alone. `wtype` can exit successfully without inserting into many focused apps; `ydotool` injects via `/dev/uinput` and is more reliable. Follow the full [Wayland setup](#wayland-setup-gnome-hyprland-and-others) above—**enabling the unit is not enough** if your user is not in the `input` group.
-
-Oto also waits briefly after push-to-talk release before generating input and releases leftover modifiers. On **Hyprland**, it restores the focus target captured when recording started so keys land in the app you were dictating into. On **GNOME Wayland**, keep the target field focused through Processing; there is no compositor-side focus restore. Some sandboxed, privileged, terminal, or custom-rendered applications may still reject accessibility and synthetic input; use **Injection → Test insertion** to verify your target application.
+Sync is disabled by default and runs only when **Sync now** is pressed. The
+configured HTTPS endpoint must support `GET` and `PUT` for one JSON document;
+plain HTTP is accepted only for localhost. Sync includes dictionary entries,
+snippets, and styles—not provider credentials, audio, history, or general
+settings. An optional bearer token is stored in the OS keyring.
 
 ## Development
+
+### Development prerequisites
+
+| Requirement | Purpose |
+| --- | --- |
+| Node.js 18+ and npm | SvelteKit frontend and Tauri CLI |
+| Stable Rust toolchain, Clang, and CMake | Tauri backend and local Whisper bindings |
+| [Tauri 2 Linux prerequisites](https://v2.tauri.app/start/prerequisites/) | Desktop build libraries |
+| `webkit2gtk-4.1` | WebView runtime |
+| ALSA development libraries | Microphone capture through `cpal` |
+| libsecret development libraries | Secure API-key storage |
+| libayatana-appindicator development libraries | System tray and Linux package generation |
+| A working microphone | Dictation input |
+
+Package names vary by distribution. A typical Arch or CachyOS setup is:
+
+```bash
+sudo pacman -S --needed base-devel webkit2gtk-4.1 \
+  libayatana-appindicator alsa-lib libsecret nodejs npm rust clang cmake \
+  patchelf wtype ydotool wl-clipboard
+```
+
+AppIndicator is required for production packaging because Oto includes a system
+tray:
+
+| Distribution | Package |
+| --- | --- |
+| Arch / CachyOS | `libayatana-appindicator` |
+| Debian / Ubuntu | `libayatana-appindicator3-dev` |
+| Fedora | `libayatana-appindicator-gtk3-devel` |
+
+Confirm that `pkg-config` can find it:
+
+```bash
+pkg-config --exists ayatana-appindicator3-0.1 && echo "appindicator ok"
+```
+
+### Common commands
 
 ```bash
 # Install JavaScript dependencies
@@ -322,25 +292,24 @@ npm install
 # Run the desktop app with frontend hot reload
 npm run tauri dev
 
-# Frontend type and accessibility checks
+# Check the Svelte frontend
 npm run check
 
-# Frontend production build
+# Build the frontend
 npm run build
 
-# Rust tests
+# Run Rust tests and compile checks
 cd src-tauri
 cargo test
-
-# Rust compile check
 cargo check
 ```
 
-The Tauri development process opens the settings window and keeps the overlay preloaded but hidden until dictation starts.
+The Tauri development process opens the settings window and keeps the overlay
+preloaded but hidden until dictation starts.
 
-## Production builds
+### Production builds
 
-Install [libayatana-appindicator](#requirements) first (see Requirements). Then build all configured Linux package formats with:
+Build all configured Linux package formats with:
 
 ```bash
 npm run tauri build
@@ -354,19 +323,21 @@ deb/Oto_<version>_amd64.deb
 rpm/Oto-<version>-1.x86_64.rpm
 ```
 
-The npm `tauri` script (`scripts/tauri.mjs`) sets `NO_STRIP=1` and, on Linux `build`, checks for appindicator via `pkg-config` before starting the compile. `NO_STRIP=1` avoids the older `strip` executable embedded in `linuxdeploy` failing on modern Linux ELF sections such as `.relr.dyn`. The first AppImage build may need network access to download the AppImage runtime.
+The `npm run tauri build` wrapper checks for AppIndicator and sets `NO_STRIP=1`
+to avoid older `linuxdeploy` strip binaries failing on modern ELF sections. The
+first AppImage build may require network access to download its runtime.
 
-Debian packages declare `libayatana-appindicator3-1` as a runtime dependency automatically once the host library is detected.
-
-### Flatpak and release automation
-
-[`packaging/dev.oto.app.yml`](packaging/dev.oto.app.yml) wraps the Tauri Debian artifact in a GNOME-runtime Flatpak. Build instructions and sandbox limitations are in [`packaging/README.md`](packaging/README.md). Local models for the Flatpak belong under `~/.local/share/oto`.
-
-GitHub Actions runs frontend checks, production compilation, Rust tests, and `cargo check` on pushes and pull requests. Pushing a `v*` tag builds AppImage, Debian, and RPM artifacts into a draft GitHub release.
+The [Flatpak packaging guide](packaging/README.md) explains how to wrap the
+Tauri Debian artifact and documents the sandbox limitations. GitHub Actions
+runs frontend checks, production compilation, Rust tests, and `cargo check`;
+tags matching `v*` create draft releases with AppImage, Debian, and RPM
+artifacts.
 
 ## Architecture
 
-Oto is one Tauri 2 desktop application: Svelte owns the two webview interfaces, while Rust owns audio, credentials, global shortcuts, providers, injection, and pipeline state.
+Oto is a Tauri 2 desktop application. Svelte owns the overlay and settings
+webviews, while Rust owns audio capture, credentials, global shortcuts,
+providers, text insertion, and pipeline state.
 
 ```text
 .
@@ -380,124 +351,87 @@ Oto is one Tauri 2 desktop application: Svelte owns the two webview interfaces, 
 │   ├── src/commands/                 Frontend command handlers
 │   ├── src/config/                   Config file and keyring boundary
 │   ├── src/features/                 Snippets, history, and opt-in sync
-│   ├── src/hotkeys/                  X11 and Wayland PTT registration
+│   ├── src/hotkeys/                  X11 and Wayland shortcut registration
 │   ├── src/injection/                AT-SPI, clipboard, and paste tools
-│   ├── src/pipeline/                 Lifecycle, events, cancellation
+│   ├── src/pipeline/                 Lifecycle, events, and cancellation
 │   └── src/providers/                Provider traits and compatible client
 ├── packaging/                        Flatpak manifest and AppStream metadata
 ├── .github/workflows/                Continuous verification and tagged releases
-├── static/                           Frontend static assets
-├── docs/superpowers/                 Design specification and implementation plan
 ├── package.json                      Frontend and Tauri scripts
-└── src-tauri/tauri.conf.json         Windows, security, and bundle configuration
+└── src-tauri/tauri.conf.json         Window, security, and bundle configuration
 ```
 
-The backend emits typed `pipeline://event` messages. Both hotkey and tray controls call the same orchestrator, keeping recording, cancellation, error handling, overlay visibility, and insertion behavior consistent.
+The backend emits typed `pipeline://event` messages. Hotkey and tray controls
+call the same orchestrator, so recording, cancellation, overlay visibility,
+error handling, and insertion share one lifecycle.
 
 ## Privacy and security
 
-- Recorded audio is sent to the configured speech-to-text provider only in cloud mode; local Whisper keeps it on-device.
-- When polishing is enabled, transcript text is sent to the configured chat-completions provider.
+- Cloud transcription sends recorded audio only to the configured speech-to-text provider.
+- Local Whisper keeps transcription on the device.
+- Polishing sends transcript text to the configured chat-completions provider.
 - API keys remain in the operating system keyring.
-- Non-secret preferences are stored in the local XDG configuration file.
-- History remains on-device and is independently disableable and clearable.
-- Sync is disabled by default, user-initiated, and talks only to the endpoint the user enters.
+- History remains on the device and can be disabled or cleared independently.
+- Sync is disabled by default and communicates only with the endpoint you configure.
 - Oto does not operate an intermediary cloud service.
 
-Review the policies of the provider you select. Use a trusted custom endpoint if you need a different data-handling boundary.
+Review the policies of the provider you select. Use local transcription and a
+trusted local endpoint if you need an entirely on-device data boundary.
 
 ## Troubleshooting
+
 ### The hotkey or overlay does not appear
 
-1. Check whether another desktop shortcut already owns the configured chord.
-2. Return to `Ctrl+Shift+Space`, save, and restart Oto.
-3. On Hyprland, confirm `xdg-desktop-portal-hyprland` is running.
-4. Test the pipeline with tray **Start Listening** / **Stop Listening**. If the tray path works, the problem is shortcut registration rather than the overlay or microphone.
+1. Check whether another desktop shortcut owns the configured chord.
+2. Restore `Ctrl+Shift+Space`, save, and restart Oto.
+3. On Wayland, verify that the portal and compositor-specific backend are running.
+4. Try the tray controls. If they work, the problem is shortcut registration.
 5. Use **Appearance → Preview listening** to test the overlay independently.
 
-### Text is transcribed (overlay works) but not inserted
+### Text is transcribed but not inserted
 
-This almost always means the inject chain fell through to **clipboard-only**. Transcripts are already on the clipboard—paste with Ctrl+V until tools work.
-
-1. **Check the inject log**
-
-   ```bash
-   tail -n 50 "/tmp/oto-inject-${USER}.log"
-   ```
-
-   If you see `ydotool_ready=false`, `wtype=false`, or `result=ClipboardOnly`, the daemon or tools are not usable.
-
-2. **Wayland: fix `ydotoold` (most common)**
-
-   Follow [Wayland setup](#wayland-setup-gnome-hyprland-and-others). In short:
-
-   ```bash
-   # Permission to open /dev/uinput — required; re-login after this
-   sudo usermod -aG input "$USER"
-   # log out of GNOME/Hyprland completely, log back in, then:
-
-   groups | grep -w input
-   systemctl --user reset-failed ydotool.service
-   systemctl --user enable --now ydotool.service
-   systemctl --user status ydotool.service    # active (running)
-
-   ls -la "$XDG_RUNTIME_DIR/.ydotool_socket"
-   # focus a text field in another app:
-   ydotool type -- 'hello '
-   ```
-
-   **`systemctl --user enable --now` alone is not enough** if `input` is missing. Journal will show:
-
-   ```text
-   failed to open uinput device: Permission denied
-   ```
-
-   Then systemd marks the unit `failed` / `start-limit-hit` even though the service is “enabled.”
-
-3. **Optional fallback:** install `wtype`. Prefer a healthy `ydotoold` on GNOME and Hyprland.
-4. **X11:** install `xdotool`.
-5. Start with **Auto** and run **Injection → Test insertion** with another editable app focused (**not** Oto Settings). Try **Direct type** or **Clipboard + paste** if Auto is flaky.
-6. Keep focus on the target field for the whole hold → process cycle. On Hyprland, Oto can restore the captured window; on GNOME, it cannot.
-7. Some apps block synthetic input—use **Clipboard only** there and paste manually.
-
-### API-key or keyring errors
-
-- Make sure a Secret Service implementation is running and unlocked.
-- Save the key again under the currently selected provider preset.
-- The JSON config intentionally contains no API key.
-
-### `Can't detect any appindicator library` / deb and AppImage missing
-
-The release binary finished (`Built application at: …/target/release/oto`) but packaging aborted. Tauri needs a system tray library on the **build host** because Oto enables `tray-icon`.
+The transcript is already on the clipboard when the insertion chain reaches its
+final fallback. Check the injection log:
 
 ```bash
-# Arch / CachyOS
-sudo pacman -S --needed libayatana-appindicator
-
-# Debian / Ubuntu
-sudo apt install libayatana-appindicator3-dev
-
-# Fedora
-sudo dnf install libayatana-appindicator-gtk3-devel
-
-pkg-config --exists ayatana-appindicator3-0.1 && echo ok
-npm run tauri build
+tail -n 50 "/tmp/oto-inject-${USER}.log"
 ```
 
-`npm run tauri build` runs this check first and prints the same install commands if the library is missing.
+On Wayland, verify that `ydotoold` is active and can type into another
+application. On X11, install `xdotool`. Start with **Auto**, then test
+**Clipboard + paste**, **Direct type**, or **Clipboard only** for applications
+that block synthetic input.
 
-### `failed to run linuxdeploy`
+### API key or keyring errors
 
-Use `npm run tauri build`, not a direct `tauri build`; the npm script supplies the required `NO_STRIP=1` workaround. Make sure the first AppImage build can access the network.
+- Make sure a Secret Service implementation is running and unlocked.
+- Save the key again under the currently selected provider.
+- The JSON configuration intentionally contains no API keys.
+
+### Packaging fails after compilation
+
+If Tauri reports `Can't detect any appindicator library`, install the
+distribution package listed under
+[Development prerequisites](#development-prerequisites), verify it with
+`pkg-config`, and rerun `npm run tauri build`.
+
+If `linuxdeploy` fails, use the npm wrapper rather than calling `tauri build`
+directly; the wrapper supplies the required `NO_STRIP=1` workaround.
+
+For a complete Wayland and GNOME diagnostic catalog, see
+[`errorfix.md`](errorfix.md).
 
 ## Contributing
 
 1. Create a branch from the current default branch.
 2. Keep platform-specific behavior behind clear Linux session checks.
-3. Run `npm run check`, `npm run build`, `cargo test`, and `cargo check` before opening a pull request.
-4. Describe the desktop session used for manual tests—X11 or Wayland, compositor, portal backend, and insertion tool.
+3. Run `npm run check`, `npm run build`, `cargo test`, and `cargo check`.
+4. In pull requests, describe the tested session: X11 or Wayland, compositor,
+   portal backend, and insertion tool.
 
-The implementation rationale is documented in the [design specification](docs/superpowers/specs/2026-07-19-oto-design.md) and [MVP implementation plan](docs/superpowers/plans/2026-07-19-oto-mvp.md).
+Implementation rationale is available in the
+[design specification](docs/superpowers/specs/2026-07-19-oto-design.md) and
+[MVP implementation plan](docs/superpowers/plans/2026-07-19-oto-mvp.md).
 
 ## License
 
