@@ -108,6 +108,8 @@ pub struct AppConfig {
     pub custom_providers: Vec<ProviderProfile>,
     pub active_custom_provider_id: Option<String>,
     pub sync: SyncConfig,
+    /// Launch Oto automatically when the desktop session starts (XDG autostart).
+    pub autostart_enabled: bool,
 }
 
 impl Default for AppConfig {
@@ -142,6 +144,7 @@ impl Default for AppConfig {
             custom_providers: vec![],
             active_custom_provider_id: None,
             sync: SyncConfig::default(),
+            autostart_enabled: false,
         }
     }
 }
@@ -219,6 +222,7 @@ mod tests {
         assert_eq!(config.stt_backend, SttBackend::Cloud);
         assert!(config.history_enabled);
         assert!(!config.styles.is_empty());
+        assert!(!config.autostart_enabled);
     }
 
     #[test]

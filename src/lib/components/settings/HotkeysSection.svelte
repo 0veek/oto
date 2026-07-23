@@ -172,4 +172,34 @@
       </ul>
     </div>
   </div>
+
+  <div
+    class="space-y-4 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl backdrop-blur-xl"
+  >
+    <div>
+      <h3 class="text-sm font-semibold tracking-tight text-slate-200">Startup</h3>
+      <p class="mt-1 text-xs text-slate-500">
+        Launch Oto with your desktop session so the tray and hotkey are ready without opening
+        Settings first.
+      </p>
+    </div>
+    <label
+      class="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/10 bg-slate-900/40 px-4 py-3 transition hover:border-white/20"
+    >
+      <span>
+        <span class="block text-sm font-medium text-slate-200">Launch at login</span>
+        <span class="block text-xs text-slate-500">
+          Installs an XDG autostart entry for this binary
+          (<code class="rounded bg-white/5 px-1">~/.config/autostart/dev.oto.app.desktop</code>).
+          Save to apply. Hyprland needs a session that runs XDG autostart (or add the same Exec
+          to your Hyprland startup).
+        </span>
+      </span>
+      <input
+        type="checkbox"
+        class="h-4 w-4 shrink-0 rounded border-white/20 bg-slate-900 text-sky-500 focus:ring-sky-400/30"
+        bind:checked={config.autostart_enabled}
+      />
+    </label>
+  </div>
 </section>

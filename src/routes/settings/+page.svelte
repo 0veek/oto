@@ -87,6 +87,7 @@
       custom_providers: [],
       active_custom_provider_id: null,
       sync: { enabled: false, endpoint: "" },
+      autostart_enabled: false,
     };
   }
 

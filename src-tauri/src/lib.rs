@@ -1,4 +1,5 @@
 mod audio;
+mod autostart;
 mod commands;
 mod config;
 mod error;
@@ -155,7 +156,14 @@ pub fn run() {
                         let _ = settings_for_event.hide();
                     }
                 });
-                let _ = settings.show();
+                // Login autostart should stay tray-only; open settings only for
+                // interactive launches (or tray → Open Settings).
+                if autostart::launched_from_autostart() {
+                    let _ = settings.hide();
+                    eprintln!("oto: started via autostart — settings window left hidden");
+                } else {
+                    let _ = settings.show();
+                }
             }
 
             // Overlay: preload webview (visible:false windows often stay cold until first show),
@@ -216,13 +224,19 @@ pub fn run() {
                 });
             }
 
-            // Clear stale (0,0) overlay coords from earlier Moved bugs.
+            // Clear stale (0,0) overlay coords from earlier Moved bugs, and keep
+            // the XDG autostart Exec= path pointed at this binary when enabled.
             if let Ok(mut cfg) = load_config() {
+                let mut dirty = false;
                 if cfg.overlay_x == Some(0) && cfg.overlay_y == Some(0) {
                     cfg.overlay_x = None;
                     cfg.overlay_y = None;
+                    dirty = true;
+                }
+                if dirty {
                     let _ = save_config(&cfg);
                 }
+                autostart::refresh_if_enabled(cfg.autostart_enabled);
             }
 
             let (hotkey, load_error) = match load_config() {

@@ -1,3 +1,4 @@
+use crate::autostart;
 use crate::config::{load_config, save_config, secrets, AppConfig, IdleBehavior, ProviderPreset};
 use crate::error::OtoError;
 use crate::hotkeys;
@@ -42,7 +43,13 @@ pub async fn set_config(app: AppHandle, mut cfg: AppConfig) -> Result<(), OtoErr
         }
     }
     hotkeys::register_ptt(&app, &cfg.hotkey).await?;
-    eprintln!("oto: config saved, hotkey active = {}", cfg.hotkey);
+    // Install/remove XDG autostart before writing config so a filesystem failure
+    // does not leave the on-disk flag out of sync with the desktop entry.
+    autostart::apply(cfg.autostart_enabled)?;
+    eprintln!(
+        "oto: config saved, hotkey active = {}, autostart = {}",
+        cfg.hotkey, cfg.autostart_enabled
+    );
     save_config(&cfg)?;
     // Apply idle appearance immediately when settings change.
     if let Some(overlay) = app.get_webview_window("overlay") {

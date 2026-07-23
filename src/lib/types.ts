@@ -94,4 +94,6 @@ export interface AppConfig {
   custom_providers: ProviderProfile[];
   active_custom_provider_id: string | null;
   sync: SyncConfig;
+  /** Launch Oto automatically at desktop login (XDG autostart). */
+  autostart_enabled: boolean;
 }
