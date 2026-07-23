@@ -458,26 +458,41 @@ See [`packaging/README.md`](packaging/README.md).
 
 ---
 
-## 14. Dev builds: portal app identity / desktop file
+## 14. Portal app identity / desktop file (AppImage, dev, unpackaged)
 
 ### Symptoms
 
-- GlobalShortcuts works for release builds but not `npm run tauri dev`.
-- Portal bind errors referring to app registration / app ID.
+- `Wayland portal app registration failed: … App info not found for 'dev.oto.app'`
+- GlobalShortcuts works for Flatpak/deb but not AppImage or `npm run tauri dev`.
 
 ### Cause
 
-The portal identifies the app as `dev.oto.app`. Without a matching `.desktop` file, GNOME’s portal may refuse or ignore shortcut binding. Debug builds write:
+The portal Registry resolves app ID `dev.oto.app` via a desktop entry named exactly:
 
 `~/.local/share/applications/dev.oto.app.desktop`
 
+(or the same name under `$XDG_DATA_DIRS/applications`).
+
+Tauri AppImages often install a differently named launcher (e.g. `oto_0.1.0_amd64.desktop`), which does **not** satisfy the portal. Cosmic/GNOME then reject host-app registration.
+
+Oto now writes `dev.oto.app.desktop` on first Wayland hotkey bind if it is missing or points at an old binary.
+
 ### Solution
 
-1. Launch once via `npm run tauri dev` so the desktop file can be created.
-2. Confirm the file exists and points at the current binary.
-3. `update-desktop-database ~/.local/share/applications` if your distro requires it.
-4. Restart portal user services, then re-save the hotkey.
-5. If still broken, install a packaged build for daily use and keep dev builds for UI work with tray Start/Stop.
+1. Confirm the file exists and `Exec=` points at the binary or AppImage you actually run:
+
+   ```bash
+   cat ~/.local/share/applications/dev.oto.app.desktop
+   update-desktop-database ~/.local/share/applications
+   ```
+
+2. Restart portals and re-save the hotkey:
+
+   ```bash
+   systemctl --user restart xdg-desktop-portal.service
+   ```
+
+3. On **COSMIC**, even with a correct desktop file, **GlobalShortcuts is not implemented** by `xdg-desktop-portal-cosmic` (only Access/FileChooser/Screenshot/Settings/ScreenCast). Use tray **Start/Stop** for dictation until a GlobalShortcuts backend exists, or run under GNOME/KDE/Hyprland with the matching portal package.
 
 ---
 

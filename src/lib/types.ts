@@ -53,6 +53,17 @@ export interface HistoryEntry {
   language: string | null;
 }
 
+/** Desktop / portal capability snapshot from `get_hotkey_desktop_status`. */
+export interface HotkeyDesktopStatus {
+  session: "wayland" | "x11" | "unknown" | string;
+  desktop: string;
+  global_shortcuts_available: boolean;
+  is_cosmic: boolean;
+  is_hyprland: boolean;
+  warning: string | null;
+  portal_hint: string | null;
+}
+
 export interface AppConfig {
   provider_preset: ProviderPreset;
   base_url: string;

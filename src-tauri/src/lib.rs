@@ -122,6 +122,7 @@ pub fn run() {
             commands::config_cmds::set_provider_api_key,
             commands::config_cmds::provider_api_key_present,
             commands::config_cmds::get_app_version,
+            commands::config_cmds::get_hotkey_desktop_status,
             commands::config_cmds::set_overlay_position,
             commands::history_cmds::get_history,
             commands::history_cmds::delete_history_entry,
