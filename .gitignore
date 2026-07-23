@@ -14,10 +14,6 @@ node_modules/
 # Rust / Tauri build output
 /src-tauri/target/
 /src-tauri/gen/schemas/
-# `tauri icon` also emits mobile assets; Oto currently ships Linux desktop only.
-/src-tauri/icons/64x64.png
-/src-tauri/icons/android/
-/src-tauri/icons/ios/
 *.AppImage
 *.deb
 *.rpm
