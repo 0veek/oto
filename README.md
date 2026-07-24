@@ -13,6 +13,12 @@
     <a href="#development">Development</a> ·
     <a href="#troubleshooting">Troubleshooting</a>
   </p>
+  <p>
+    <strong>Also available for</strong><br>
+    <a href="https://github.com/0veek/oto-mac">macOS</a>
+    &nbsp;·&nbsp;
+    <a href="https://github.com/0veek/oto-win">Windows</a>
+  </p>
 </div>
 
 ![Oto feature overview](docs/assets/oto-features-bento.png)
