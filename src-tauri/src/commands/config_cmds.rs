@@ -4,7 +4,7 @@ use crate::error::OtoError;
 use crate::hotkeys;
 use crate::pipeline::orchestrator::position_overlay;
 use crate::state::AppState;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 fn preset_account(p: &ProviderPreset) -> &'static str {
     crate::providers::presets::preset_account(p)
@@ -46,6 +46,8 @@ pub async fn set_config(app: AppHandle, mut cfg: AppConfig) -> Result<(), OtoErr
         cfg.hotkey, cfg.autostart_enabled
     );
     save_config(&cfg)?;
+    // Notify other webviews (overlay) so theme / scale / motion stay in sync.
+    let _ = app.emit("config://changed", &cfg);
     // Apply idle appearance immediately when settings change.
     if let Some(overlay) = app.get_webview_window("overlay") {
         if cfg.idle_behavior == IdleBehavior::Minimal {
@@ -86,10 +88,13 @@ pub async fn api_key_hint(preset: ProviderPreset) -> Result<Option<String>, OtoE
     let account = preset_account(&preset).to_string();
     tauri::async_runtime::spawn_blocking(move || {
         Ok(secrets::get_api_key(&account)?.map(|k| {
-            if k.len() <= 8 {
+            let chars: Vec<char> = k.chars().collect();
+            if chars.len() <= 8 {
                 "••••".into()
             } else {
-                format!("{}…{}", &k[..4], &k[k.len() - 3..])
+                let head: String = chars.iter().take(4).collect();
+                let tail: String = chars.iter().rev().take(3).collect::<Vec<_>>().into_iter().rev().collect();
+                format!("{head}…{tail}")
             }
         }))
     })

@@ -73,20 +73,39 @@
     }
   }
 
+  const PHASE_LABELS: Record<string, string> = {
+    transcribing: "Transcribing…",
+    polishing: "Polishing…",
+    injecting: "Inserting…",
+    "rewriting selection": "Rewriting…",
+  };
+
   function statusLabel(value: PipelineState) {
     switch (value) {
       case "listening":
-        return "Listening";
-      case "processing":
-        return phase || "Processing";
+        return detail?.trim() || "Listening";
+      case "processing": {
+        if (phase) {
+          return PHASE_LABELS[phase] || phase;
+        }
+        // Prefer backend detail (e.g. polish fallback toast) when present.
+        return detail?.trim() || "Processing";
+      }
       case "done":
-        return "Inserted";
+        // Clipboard-only / inject path detail is the truth ("Copied — press Ctrl+V").
+        return detail?.trim() || "Inserted";
       case "error":
         return detail || "Couldn’t insert";
       default:
         return "Ready";
     }
   }
+
+  const displayPartial = $derived(
+    (currentState === "listening" || currentState === "processing") && partial.trim().length > 0
+      ? partial.trim()
+      : "",
+  );
 </script>
 
 <div
@@ -98,8 +117,8 @@
   class="oto-pill state-{currentState}"
   role="status"
   aria-live="polite"
-  aria-label={`Oto — ${statusLabel(currentState)}${partial ? `. ${partial}` : ""}`}
-  title={detail || partial || statusLabel(currentState)}
+  aria-label={`Oto — ${statusLabel(currentState)}${displayPartial ? `. ${displayPartial}` : ""}`}
+  title={detail || displayPartial || statusLabel(currentState)}
 >
   <div class="oto-pill__rail" data-tauri-drag-region>
     <span class="oto-pill__status-mark" aria-hidden="true">
@@ -116,9 +135,13 @@
       {/if}
     </span>
 
-    {#key currentState}
+    {#key `${currentState}:${phase}:${displayPartial}:${detail}`}
       <span class:oto-pill__label--error={currentState === "error"} class="oto-pill__label">
-        {statusLabel(currentState)}
+        {#if displayPartial}
+          {displayPartial}
+        {:else}
+          {statusLabel(currentState)}
+        {/if}
       </span>
     {/key}
 

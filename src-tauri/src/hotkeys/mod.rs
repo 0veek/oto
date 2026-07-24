@@ -1,3 +1,4 @@
+use crate::config::load_config;
 use crate::error::{OtoError, OtoResult};
 use crate::state::AppState;
 use serde::Serialize;
@@ -297,19 +298,37 @@ fn register_native_ptt<R: Runtime>(app: &AppHandle<R>, normalized: &str) -> OtoR
     let shortcut_for_check = parse_hotkey(normalized)?;
 
     // Best-effort clear so changing the binding does not leave stale shortcuts.
+    // If the new bind fails, try to re-apply the previously saved hotkey so PTT
+    // is not left completely unbound for the rest of the session.
+    let previous_hotkey = load_config()
+        .ok()
+        .map(|cfg| normalize_hotkey(&cfg.hotkey))
+        .filter(|h| h != normalized);
     let _ = unregister_all_hotkeys(app);
 
-    app.global_shortcut()
-        .on_shortcut(shortcut, |app, sc, event| {
-            eprintln!(
-                "oto hotkey event: {:?} state={:?} id={}",
-                sc,
-                event.state(),
-                sc.id()
-            );
-            dispatch_ptt_event(app, event.state());
-        })
-        .map_err(|e| OtoError::Message(format!("failed to register hotkey '{normalized}': {e}")))?;
+    if let Err(error) = app.global_shortcut().on_shortcut(shortcut, |app, sc, event| {
+        eprintln!(
+            "oto hotkey event: {:?} state={:?} id={}",
+            sc,
+            event.state(),
+            sc.id()
+        );
+        dispatch_ptt_event(app, event.state());
+    }) {
+        if let Some(previous) = previous_hotkey.as_deref() {
+            if let Ok(prev_sc) = parse_hotkey(previous) {
+                let _ = app.global_shortcut().on_shortcut(prev_sc, |app, _sc, event| {
+                    dispatch_ptt_event(app, event.state());
+                });
+                eprintln!(
+                    "oto hotkey: re-registered previous hotkey {previous} after failed bind of {normalized}"
+                );
+            }
+        }
+        return Err(OtoError::Message(format!(
+            "failed to register hotkey '{normalized}': {error}"
+        )));
+    }
 
     // Verify registration where the backend supports it.
     if app.global_shortcut().is_registered(shortcut_for_check) {
@@ -517,7 +536,7 @@ fn ensure_portal_desktop_file() -> OtoResult<()> {
     fs::create_dir_all(&applications)?;
     let desktop_file = applications.join(format!("{PORTAL_APP_ID}.desktop"));
 
-    let executable = std::env::current_exe()?;
+    let executable = resolve_host_executable()?;
     // Quote the path so spaces/AppImage paths survive desktop-entry parsing.
     let exec = shell_quote_desktop_exec(&executable);
     let entry = format!(
@@ -550,6 +569,20 @@ fn ensure_portal_desktop_file() -> OtoResult<()> {
             .status();
     }
     Ok(())
+}
+
+/// Prefer `$APPIMAGE` when running from an AppImage so desktop entries point at
+/// the persistent launcher, not the transient `/tmp/.mount_*` runtime path.
+#[cfg(target_os = "linux")]
+fn resolve_host_executable() -> OtoResult<PathBuf> {
+    if let Ok(appimage) = std::env::var("APPIMAGE") {
+        let path = PathBuf::from(appimage);
+        if path.is_file() {
+            return Ok(path);
+        }
+    }
+    let executable = std::env::current_exe()?;
+    Ok(executable.canonicalize().unwrap_or(executable))
 }
 
 /// Quote a path for a desktop-entry `Exec=` line.
@@ -848,16 +881,9 @@ async fn register_wayland_ptt<R: Runtime>(app: &AppHandle<R>, normalized: &str) 
         return Ok(());
     }
 
-    state.pressed.store(false, Ordering::SeqCst);
-    if let Some(old) = registration.take() {
-        old.activated_task.abort();
-        old.deactivated_task.abort();
-        let _ = old.session.close().await;
-    }
-
     // Desktops without GlobalShortcuts (notably COSMIC today) cannot bind a
-    // system-wide PTT key. Soft-skip so settings save still works; the Hotkeys
-    // UI surfaces a dedicated warning and users use tray Start/Stop instead.
+    // system-wide PTT key. Soft-skip so settings save still works — but never
+    // tear down a live session first (that permanently disables PTT mid-run).
     if !portal_has_global_shortcuts().await {
         let warning = global_shortcuts_warning(
             is_cosmic_session(),
@@ -865,6 +891,19 @@ async fn register_wayland_ptt<R: Runtime>(app: &AppHandle<R>, normalized: &str) 
             is_gnome_session(),
             is_kde_session(),
         );
+        if registration.is_some() {
+            eprintln!(
+                "oto hotkey: portal unavailable; keeping existing binding for {}",
+                registration
+                    .as_ref()
+                    .map(|r| r.hotkey.as_str())
+                    .unwrap_or("?")
+            );
+            // Surface failure when the user is trying to change the chord.
+            return Err(OtoError::Message(format!(
+                "GlobalShortcuts portal unavailable; kept previous hotkey. {warning}"
+            )));
+        }
         eprintln!("oto hotkey: skipping bind — {warning}");
         return Ok(());
     }
@@ -897,6 +936,11 @@ async fn register_wayland_ptt<R: Runtime>(app: &AppHandle<R>, normalized: &str) 
                  COSMIC currently has no GlobalShortcuts backend — use the tray Start/Stop controls."
             ))
         })?;
+
+    // Open the new portal session before closing the old one so a failed bind
+    // can leave the previous registration intact (when the portal allows two
+    // sequential sessions). We still must close the old session after success
+    // because most portals only keep one host-app binding set active.
     let session = portal
         .create_session(CreateSessionOptions::default())
         .await
@@ -945,6 +989,15 @@ async fn register_wayland_ptt<R: Runtime>(app: &AppHandle<R>, normalized: &str) 
             return Err(error);
         }
     }
+
+    // New bind succeeded — now retire the previous portal session.
+    if let Some(old) = registration.take() {
+        old.activated_task.abort();
+        old.deactivated_task.abort();
+        let _ = old.session.close().await;
+    }
+
+    state.pressed.store(false, Ordering::SeqCst);
 
     let pressed_app = app.clone();
     let pressed_session = session_handle.clone();

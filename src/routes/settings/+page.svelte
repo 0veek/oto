@@ -216,7 +216,12 @@
       {:else if active === "appearance"}
         <AppearanceSection bind:config />
       {:else if active === "permissions"}
-        <PermissionsSection />
+        <PermissionsSection
+          onselect={(id) => {
+            active = id as SectionId;
+            saveStatus = null;
+          }}
+        />
       {:else if active === "privacy"}
         <PrivacySection bind:config />
       {:else if active === "injection"}
@@ -231,7 +236,7 @@
             Changes are stored locally and take effect after saving.
           </span>
           <div class="flex items-center gap-3">
-            {#if saveStatus?.startsWith("Save failed")}
+            {#if saveStatus && saveStatus !== "Saved"}
               <span class="text-sm text-rose-400" role="alert">{saveStatus}</span>
             {/if}
           <button

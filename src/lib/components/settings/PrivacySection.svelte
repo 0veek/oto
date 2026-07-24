@@ -62,6 +62,6 @@
     <div class="flex gap-2" class:opacity-50={!config.sync.enabled}><input type="password" disabled={!config.sync.enabled} class="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm" placeholder={tokenPresent ? "Replace saved bearer token…" : "Optional bearer token"} bind:value={token} /><button type="button" disabled={!config.sync.enabled} class="rounded-xl bg-white/10 px-4 py-2.5 text-sm hover:bg-white/15" onclick={saveToken}>Save token</button></div>
     <button type="button" disabled={!config.sync.enabled || busy} class="rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-sky-400 disabled:opacity-50" onclick={syncNow}>{busy ? "Syncing…" : "Sync now"}</button>
     {#if status}<p aria-live="polite" class="text-sm {status.startsWith('Sync failed') ? 'text-rose-300' : 'text-slate-300'}">{status}</p>{/if}
-    <p class="text-xs leading-relaxed text-slate-500">Local values win when an item has the same ID; remote-only items are added. Oto never syncs API keys, history, audio, or provider credentials.</p>
+    <p class="text-xs leading-relaxed text-slate-500">Remote values win when an item has the same ID; local-only items are kept and remote-only items are added. Oto never syncs API keys, history, audio, or provider credentials.</p>
   </div>
 </section>

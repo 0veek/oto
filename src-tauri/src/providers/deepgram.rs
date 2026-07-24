@@ -106,10 +106,15 @@ async fn http_error_message(res: reqwest::Response) -> OtoError {
             let trimmed = body.trim();
             if trimmed.is_empty() {
                 status.to_string()
-            } else if trimmed.len() > 300 {
-                format!("{}…", &trimmed[..300])
             } else {
-                trimmed.to_string()
+                // Char-safe truncation — byte slicing panics on multi-byte UTF-8.
+                let mut iter = trimmed.chars();
+                let head: String = iter.by_ref().take(300).collect();
+                if iter.next().is_some() {
+                    format!("{head}…")
+                } else {
+                    head
+                }
             }
         });
     OtoError::Message(format!("STT failed ({status}): {detail}"))

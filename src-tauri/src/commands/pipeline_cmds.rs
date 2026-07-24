@@ -39,9 +39,10 @@ pub async fn cancel_dictation(state: State<'_, AppState>) -> Result<(), OtoError
 /// idle behavior is set to hide.
 #[tauri::command]
 pub async fn debug_preview_listening(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
-    if !state.pipeline.is_idle() {
-        return Err("Finish or cancel the current dictation before previewing".into());
-    }
+    state
+        .pipeline
+        .begin_exclusive_test()
+        .map_err(|error| error.to_string())?;
 
     if let Some(window) = app.get_webview_window("overlay") {
         position_overlay(&window);
@@ -61,6 +62,8 @@ pub async fn debug_preview_listening(app: AppHandle, state: State<'_, AppState>)
         let _ = app.emit("pipeline://event", PipelineEvent::Level { level });
         sleep(Duration::from_millis(90)).await;
     }
+
+    state.pipeline.end_exclusive_test();
 
     let _ = app.emit(
         "pipeline://event",

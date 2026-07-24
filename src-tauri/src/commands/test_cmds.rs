@@ -75,11 +75,8 @@ pub async fn test_injection() -> Result<String, OtoError> {
 /// Capture ~2s of microphone audio and stream level events (no STT).
 #[tauri::command]
 pub async fn test_microphone(app: AppHandle, state: State<'_, AppState>) -> Result<(), OtoError> {
-    if !state.pipeline.is_idle() {
-        return Err(OtoError::Message(
-            "Finish or cancel the current dictation before testing the microphone".into(),
-        ));
-    }
+    // Hold the pipeline exclusively so global PTT cannot open a second stream.
+    state.pipeline.begin_exclusive_test()?;
 
     show_overlay_for_test(&app);
     let _ = app.emit(
@@ -90,6 +87,7 @@ pub async fn test_microphone(app: AppHandle, state: State<'_, AppState>) -> Resu
     let recorder = match AudioRecorder::start(app.clone()) {
         Ok(r) => r,
         Err(e) => {
+            state.pipeline.end_exclusive_test();
             let _ = app.emit(
                 "pipeline://event",
                 PipelineEvent::Error {
@@ -112,6 +110,7 @@ pub async fn test_microphone(app: AppHandle, state: State<'_, AppState>) -> Resu
 
     // Drop stream (levels already streamed during capture).
     let _ = recorder.stop();
+    state.pipeline.end_exclusive_test();
 
     let _ = app.emit(
         "pipeline://event",

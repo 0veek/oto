@@ -217,6 +217,27 @@ impl Pipeline {
             .unwrap_or(false)
     }
 
+    /// Claim the pipeline exclusively for a diagnostic (mic test, etc.).
+    /// Prevents concurrent PTT from racing a second audio stream.
+    pub fn begin_exclusive_test(&self) -> OtoResult<()> {
+        let mut inner = self.lock_inner()?;
+        if inner.phase != Phase::Idle {
+            return Err(OtoError::Message(
+                "Finish or cancel the current dictation before running this test".into(),
+            ));
+        }
+        inner.epoch = inner.epoch.wrapping_add(1);
+        inner.cancel_flag = false;
+        // Processing blocks both new listens and premature idle appearance changes.
+        inner.phase = Phase::Processing;
+        Ok(())
+    }
+
+    /// Release a claim from [`Self::begin_exclusive_test`].
+    pub fn end_exclusive_test(&self) {
+        self.set_phase_idle();
+    }
+
     fn listening_snapshot(&self, session_epoch: u64) -> OtoResult<Option<Vec<u8>>> {
         let inner = self.lock_inner()?;
         if inner.phase != Phase::Listening || inner.epoch != session_epoch {
@@ -296,8 +317,21 @@ impl Pipeline {
     /// Start Command Mode after capturing the selected text in the focused app.
     /// Settings uses a short delay so the user can restore focus; tray uses zero.
     pub async fn command_down(&self, focus_delay_ms: u64) -> OtoResult<()> {
+        // Reject before clipboard/selection capture so an active dictation is not
+        // disturbed and the caller's clipboard is not rewritten for a no-op start.
+        if !self.is_idle() {
+            return Err(OtoError::Message(
+                "Finish or cancel the current dictation before starting Command Mode".into(),
+            ));
+        }
         if focus_delay_ms > 0 {
             sleep(Duration::from_millis(focus_delay_ms.min(5000))).await;
+        }
+        // Re-check after the focus delay — PTT may have started in the meantime.
+        if !self.is_idle() {
+            return Err(OtoError::Message(
+                "Finish or cancel the current dictation before starting Command Mode".into(),
+            ));
         }
         let selected = capture_selected_text().await?;
         self.start_listening(SessionMode::Command, Some(selected))
@@ -438,6 +472,29 @@ impl Pipeline {
     }
 
     pub async fn ptt_up(&self) -> OtoResult<()> {
+        // Wait briefly if release races device open: start_listening sets
+        // Listening before AudioRecorder::start finishes storing the stream.
+        {
+            let deadline = std::time::Instant::now() + Duration::from_millis(800);
+            loop {
+                let (listening, has_recorder, epoch) = {
+                    let inner = self.lock_inner()?;
+                    (
+                        inner.phase == Phase::Listening,
+                        inner.recorder.is_some(),
+                        inner.epoch,
+                    )
+                };
+                if !listening || has_recorder || self.session_aborted(epoch) {
+                    break;
+                }
+                if std::time::Instant::now() >= deadline {
+                    break;
+                }
+                sleep(Duration::from_millis(20)).await;
+            }
+        }
+
         let (recorder, session_epoch, mode, selected_text) = {
             let mut inner = self.lock_inner()?;
             if inner.phase != Phase::Listening {
@@ -674,6 +731,12 @@ impl Pipeline {
         // still physically held. Wait long enough for the chord to settle, then
         // inject_text_to also synthesizes explicit key-up events before typing.
         sleep(Duration::from_millis(400)).await;
+
+        // Cancel during the settle window must never inject canceled text.
+        if self.session_aborted(session_epoch) {
+            self.set_phase_idle();
+            return Ok(());
+        }
 
         let focus_target = {
             let mut inner = self.lock_inner()?;

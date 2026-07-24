@@ -444,6 +444,9 @@ pub fn simulate_paste() -> OtoResult<()> {
 /// Simulate Ctrl+C without changing focus. Used by Command Mode to read the
 /// selection before recording the spoken edit instruction.
 pub fn simulate_copy() -> OtoResult<()> {
+    // Same as paste/type: leftover PTT modifiers turn Ctrl+C into another chord.
+    release_modifiers();
+    thread::sleep(Duration::from_millis(40));
     match detect_session() {
         SessionKind::Wayland => {
             if tool_exists("wtype") {

@@ -135,8 +135,10 @@ async fn insert_into_focused(text: &str) -> OtoResult<bool> {
             } else {
                 text_proxy.caret_offset().await.unwrap_or(0)
             };
+            // AT-SPI InsertText `length` is the UTF-8 byte length of `text`,
+            // not the Unicode scalar count (non-ASCII would otherwise truncate).
             return editable
-                .insert_text(position, text, text.chars().count() as i32)
+                .insert_text(position, text, text.len() as i32)
                 .await
                 .map_err(|error| OtoError::Message(format!("AT-SPI insert: {error}")));
         }

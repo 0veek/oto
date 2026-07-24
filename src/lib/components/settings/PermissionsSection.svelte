@@ -1,5 +1,12 @@
 <script lang="ts">
   import { IconCheck, IconExternalLink, IconMicrophone, IconPointer } from "@tabler/icons-svelte";
+
+  let {
+    onselect,
+  }: {
+    /** Navigate to another settings section without a full page remount. */
+    onselect?: (id: string) => void;
+  } = $props();
 </script>
 
 <section class="space-y-6">
@@ -25,9 +32,13 @@
         <strong>Accessibility and input</strong>
         <span>Lets Oto place dictated text in other applications.</span>
       </div>
-      <a href="?section=injection" class="permission-row__link">
+      <button
+        type="button"
+        class="permission-row__link"
+        onclick={() => onselect?.("injection")}
+      >
         Review injection <IconExternalLink aria-hidden="true" size={15} />
-      </a>
+      </button>
     </div>
   </div>
 </section>

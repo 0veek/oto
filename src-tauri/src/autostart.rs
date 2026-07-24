@@ -89,15 +89,28 @@ fn desktop_entry_for(executable: &std::path::Path) -> String {
     )
 }
 
+/// Prefer `$APPIMAGE` when running from an AppImage so autostart points at the
+/// persistent launcher, not the transient `/tmp/.mount_*` runtime path.
 #[cfg(target_os = "linux")]
-fn enable() -> OtoResult<()> {
-    use std::fs;
-
+fn resolve_host_executable() -> OtoResult<std::path::PathBuf> {
+    if let Ok(appimage) = std::env::var("APPIMAGE") {
+        let path = std::path::PathBuf::from(appimage);
+        if path.is_file() {
+            return Ok(path);
+        }
+    }
     let executable = std::env::current_exe().map_err(|error| {
         OtoError::Message(format!("could not resolve Oto executable path: {error}"))
     })?;
     // Prefer the canonical path so symlink launches still restart the real binary.
-    let executable = executable.canonicalize().unwrap_or(executable);
+    Ok(executable.canonicalize().unwrap_or(executable))
+}
+
+#[cfg(target_os = "linux")]
+fn enable() -> OtoResult<()> {
+    use std::fs;
+
+    let executable = resolve_host_executable()?;
 
     let dir = autostart_dir()?;
     fs::create_dir_all(&dir)?;

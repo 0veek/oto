@@ -24,6 +24,10 @@
     const unlistenPromise = listen<PipelineEvent>("pipeline://event", (e) => {
       applyPipelineEvent(e.payload);
     });
+    // Keep theme/motion/scale in sync when Settings saves (separate webview).
+    const unlistenConfigPromise = listen<AppConfig>("config://changed", (e) => {
+      applyTheme(e.payload.theme, e.payload.reduce_motion, e.payload.font_scale);
+    });
 
     // Persist overlay position after user drag (skip 0,0 noise from first map).
     let unlistenMoved: (() => void) | undefined;
@@ -49,6 +53,7 @@
       delete document.documentElement.dataset.surface;
       delete document.body.dataset.surface;
       unlistenPromise.then((u) => u());
+      unlistenConfigPromise.then((u) => u());
       unlistenMoved?.();
       if (posTimer) clearTimeout(posTimer);
     };
